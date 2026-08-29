@@ -198,22 +198,29 @@ Multi-parent & verifier roles; web parent dashboard; long-term meta-game
 services (characters/worlds/stories); reward marketplace; localization;
 custom art pipeline; parent-side analytics beyond daily/weekly projections.
 
-## Open questions
+## Stack (C0 — technical construction decision, not a product decision)
 
-Construction questions only. The contract-level questions (TOQ-1 … TOQ-9) are
-all dispositioned in `TECHNICAL_MODEL §10`.
+Decided for the MVP implementation stack. Time-boxed; revisable without
+touching the contract (`TECHNICAL_MODEL`).
 
-- Client framework (RN / Flutter / native) — decide against team skills +
-  animation quality needs.
-- Backend stack and hosting — decide against team skills; keep the service
-  boundaries above regardless.
-- **Persistence implementation** — storage engine, schema, indexes,
-  partitioning. (Instance materialisation strategy is eager for MVP —
-  `TECHNICAL_MODEL §10` / TOQ-7.)
-- Real-time delivery of `completion.verified` to a co-present child (push vs
-  poll vs socket) — MVP can poll on app foreground.
-- Exact parent-gate challenge design for the 3–8 context (adult friction that
-  a bright 7-year-old cannot trivially pass).
-- Whether the 8-occurrence advancement threshold varies by age band from day
-  one or ships as one global tunable default
+| Layer | Choice | Rationale |
+|---|---|---|
+| Language | **Python 3.11+** | the `a0b538c` domain is already stdlib Python; keep it |
+| Web framework | **FastAPI** (+ `uvicorn`) | typed request/response models → the §5 scope model and INV-8 boundary are enforceable as schemas; auto OpenAPI |
+| Persistence | **SQLite** for dev / reference / D1; **Postgres-portable schema** (plain SQL, no ORM lock-in) | zero-ops for the acceptance run; the `Repository` protocol keeps the engine swappable (TOQ-7) |
+| Auth | email + password (hashed, `argon2`/`pbkdf2`), server-issued **scoped tokens**; **parent gate = PIN** | smallest thing that realises the §5 actor matrix; challenge design can harden later |
+| Real-time | **poll** `completion.verified` on app foreground (MVP) | `ARCHITECTURE` already allows this; socket/push is Layer 1 |
+| Client (MVP-readiness) | **thin reference web clients** — one child, one parent — sufficient to run every `MVP.md` acceptance item for D1 | a production **mobile** (iOS + Android) client is a distinct track *on the same API*, post-readiness; not built in the MVP-implementation phase |
+
+The 8-occurrence advancement threshold ships as **one global tunable default**
+(`OWNERSHIP_MODEL` open question — the deferred option); per-band tuning stays
+post-MVP.
+
+## Open questions (remaining, post-MVP)
+
+- Production mobile client framework (RN / Flutter / native).
+- Hosting / deployment topology.
+- Socket/push real-time delivery (Layer 1).
+- Hardened parent-gate challenge design for the 3–8 context.
+- Per-age-band tuning of the advancement threshold
   ([OWNERSHIP_MODEL open questions](../experience/OWNERSHIP_MODEL.md)).
