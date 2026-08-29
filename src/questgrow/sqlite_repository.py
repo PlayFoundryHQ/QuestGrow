@@ -51,7 +51,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS account (
     account_id TEXT PRIMARY KEY,
     parent_gate_configured INTEGER NOT NULL DEFAULT 1,
-    points_enabled INTEGER NOT NULL DEFAULT 1
+    points_enabled INTEGER NOT NULL DEFAULT 1,
+    notifications_enabled INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS child (
     child_id TEXT PRIMARY KEY,
@@ -192,8 +193,11 @@ class SqliteRepository:
     # accounts / children ------------------------------------------------
     def add_account(self, a: Account) -> None:
         self._db.execute(
-            "INSERT OR REPLACE INTO account VALUES (?,?,?)",
-            (a.account_id, int(a.parent_gate_configured), int(a.points_enabled)),
+            "INSERT OR REPLACE INTO account VALUES (?,?,?,?)",
+            (
+                a.account_id, int(a.parent_gate_configured), int(a.points_enabled),
+                int(a.notifications_enabled),
+            ),
         )
         self._db.commit()
 
@@ -205,7 +209,10 @@ class SqliteRepository:
         ).fetchone()
         if r is None:
             return None
-        return Account(r["account_id"], bool(r["parent_gate_configured"]), bool(r["points_enabled"]))
+        return Account(
+            r["account_id"], bool(r["parent_gate_configured"]), bool(r["points_enabled"]),
+            bool(r["notifications_enabled"]),
+        )
 
     def add_child(self, c: Child) -> None:
         self._db.execute(

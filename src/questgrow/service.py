@@ -54,7 +54,8 @@ from .enums import (
     verification_behaviour,
 )
 from .errors import AuthorizationError, ContractViolation, NotFound
-from .events import CelebrationEvent, EventSink
+from .events import CelebrationEvent, EventSink, ParentNotification
+from .notifications import render_completion_verified
 from .ownership import (
     counter_after_completed,
     counter_after_not_yet,
@@ -139,10 +140,27 @@ class QuestGrowService:
     # ------------------------------------------------------------------ #
     # parent setup — quests, schedules, rewards, children                #
     # ------------------------------------------------------------------ #
-    def create_account(self, account_id: str, points_enabled: bool = True) -> Account:
-        a = Account(account_id=account_id, points_enabled=points_enabled)
+    def create_account(
+        self, account_id: str, points_enabled: bool = True, notifications_enabled: bool = False
+    ) -> Account:
+        a = Account(
+            account_id=account_id,
+            points_enabled=points_enabled,
+            notifications_enabled=notifications_enabled,
+        )
         self.repo.add_account(a)
         return a
+
+    def set_account_notifications(self, parent, *, enabled: bool) -> Account:
+        """Opt in / out of parent notifications (C4). Opt-out never affects the
+        child celebration lane — only the parent feed."""
+        p = self._require_parent(parent)
+        account = self.repo.get_account(p.account_id)
+        if account is None:
+            raise NotFound(f"account {p.account_id}")
+        account.notifications_enabled = enabled
+        self.repo.save_account(account)
+        return account
 
     def add_child(
         self,
@@ -594,6 +612,35 @@ class QuestGrowService:
         cq.consecutive_ok_count = counter_after_completed(cq.consecutive_ok_count)
         self.repo.save_child_quest(cq)
         self._maybe_suggest_advancement(cq)
+        self._maybe_notify_parent(inst)
+
+    def _maybe_notify_parent(self, inst: QuestInstance) -> None:
+        """C4 parent-notification lane — opt-in only. The child celebration was
+        already emitted unconditionally by the caller."""
+        child = self.repo.get_child(inst.child_id)
+        if child is None:
+            return
+        account = self.repo.get_account(child.account_id)
+        if account is None or not account.notifications_enabled:
+            return
+        quest = self.repo.latest_quest(inst.quest_id)
+        title = quest.title if quest is not None else inst.quest_id
+        done_today = sum(
+            1
+            for i in self.repo.instances_of(inst.child_id)
+            if i.on_date == inst.on_date and i.state is InstanceState.VERIFIED
+        )
+        self.events.emit_parent_notification(
+            ParentNotification(
+                account_id=account.account_id,
+                child_id=inst.child_id,
+                kind="completion.verified",
+                text=render_completion_verified(
+                    child_name=child.name, quest_title=title, count_today=done_today
+                ),
+                at=_now(),
+            )
+        )
 
     def _award_earn(self, inst: QuestInstance, cq: ChildQuest) -> int:
         """One ``earn`` per verified completion, idempotent on the QuestInstance

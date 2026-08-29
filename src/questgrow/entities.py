@@ -33,6 +33,7 @@ class Account:
     account_id: str
     parent_gate_configured: bool = True
     points_enabled: bool = True  # §6: points may be disabled account-wide
+    notifications_enabled: bool = False  # C4: parent notifications are opt-in
 
 
 @dataclass

@@ -23,9 +23,14 @@ that structurally carry no stage/level field (INV-8, asserted against the
 generated OpenAPI). C3 adds `auth.py` — `AuthService` with email + PBKDF2
 password, a PBKDF2 PIN parent-gate, and a session→gate→parent-scope token
 flow (session tokens are deliberately **not** a scope); it plugs into
-`create_app(auth=…)` as the token resolver and mounts `/auth/*`. **Not yet**
-implemented (later C-phases): notification transport (C4), the reference web
-clients (C5/C6), and any long-term meta-game. `PARENT_MANAGED` **is** implemented and
+`create_app(auth=…)` as the token resolver and mounts `/auth/*`. C4 adds
+`notifications.py` (informational parent templates + a banned-phrase list) and
+a second lane on `EventSink`: the child celebration lane fires on every
+`completion.verified` (Mode-A on approval, Mode-B immediately); the parent
+notification lane fires only when `Account.notifications_enabled` is set
+(opt-in). Both are **poll**-based — `GET /me/celebrations?since=` (child) and
+`GET /children/{id}/notifications?since=` (parent); no push in MVP. **Not yet**
+implemented: the reference web clients (C5/C6) and any long-term meta-game. `PARENT_MANAGED` **is** implemented and
 tested (it "remains a valid part of the contract" — DECISION-019) but nothing
 assigns it by default in MVP.
 
@@ -46,7 +51,7 @@ assigns it by default in MVP.
 | `repository.py` (`Repository` protocol) + `sqlite_repository.py` (`SqliteRepository`, `SCHEMA`) | §10 / TOQ-7; append-only ledger | INV-1, INV-11, INV-12 | AC-2, AC-12 |
 | `api.py` (`create_app`, `TokenStore`, wire models) | §5 actor matrix at the HTTP boundary; §13 payload | INV-5, INV-8, INV-17, INV-18 | AC-1, AC-2, AC-5, AC-8, AC-9, AC-11, AC-13 |
 | `auth.py` (`AuthService`: signup / login / `unlock_parent` / `issue_child_token` / `resolve`) | §5 (parent gate); ARCHITECTURE "Auth & authorization" | INV-17, INV-18 | AC-5 |
-| `events.py` (`EventSink`, `CelebrationEvent`) | §4 `completion.verified`; ARCHITECTURE notification service | INV-8 (no stage label in event) | AC-1, AC-2, AC-10 |
+| `events.py` (`EventSink`, `CelebrationEvent`, `ParentNotification`) + `notifications.py` (templates, `BANNED_SUBSTRINGS`) | §4 `completion.verified`; ARCHITECTURE notification service (opt-in, informational, never child-addressed) | INV-8 (no stage label in event) | AC-1, AC-2, AC-10 |
 | `service.py` ownership stage service (`set_ownership_stage`, `advancement_suggestions`, `accept/dismiss`) | §3, §5; DECISION-008/017 | INV-5, INV-6 | AC-3, AC-4, AC-13, AC-15 |
 | `service.py` `materialise_day` / `end_of_day` | §4 `→ expired`; TOQ-7 | INV-6 (sweep never touches stage), INV-16 | AC-14 |
 
@@ -145,6 +150,10 @@ forged/cross-scope requests, OpenAPI scanned for the INV-8 boundary
 `tests/test_auth.py` — session token is not a parent scope, wrong PIN does not
 unlock, child tokens are per-child and non-escalatable, cross-account parent
 cannot mint a foreign child token, secrets stored hashed, parent-token expiry.
+`tests/test_notifications.py` — Mode-A event on approval only / Mode-B
+immediately, opt-out suppresses the parent feed but not the child celebration,
+runtime toggle, `since=` filter, template banned-phrase + no-second-person
+scan.
 
 Run: `python3 -m pytest -q` (from the repo root). The domain + C1 suite needs
 no third-party packages; later C-phases add `fastapi`/`httpx` (use a venv —

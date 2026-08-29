@@ -19,7 +19,7 @@ replaces the store with password login + PIN parent-gate behind the same
 from __future__ import annotations
 
 import secrets
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
@@ -215,6 +215,24 @@ class TodayOut(BaseModel):
 class CompletionOut(BaseModel):
     quest_id: str
     state: str  # child-visible subset only
+
+
+class CelebrationOut(BaseModel):
+    quest_id: str
+    on_date: str
+    points_awarded: int
+    at: datetime
+
+
+class NotificationOut(BaseModel):
+    child_id: str
+    kind: str
+    text: str
+    at: datetime
+
+
+class NotificationsPrefIn(BaseModel):
+    enabled: bool
 
 
 class ProgressOut(BaseModel):
@@ -503,6 +521,29 @@ def create_app(
     def me_redeem(reward_id: str, c: ChildScope = Depends(_child)):
         r = svc.redeem_reward(c, child_id=c.child_id, reward_id=reward_id)
         return RedemptionOut(id=r.id, reward_id=r.reward_id, state=r.state.value)
+
+    @app.get("/me/celebrations", response_model=list[CelebrationOut])
+    def me_celebrations(since: datetime | None = None, c: ChildScope = Depends(_child)):
+        return [
+            CelebrationOut(quest_id=e.quest_id, on_date=e.on_date,
+                           points_awarded=e.points_awarded, at=e.at)
+            for e in svc.events.celebrations_since(c.child_id, since)
+        ]
+
+    @app.put("/account/notifications")
+    def set_notifications(body: NotificationsPrefIn, p: ParentScope = Depends(_parent)):
+        a = svc.set_account_notifications(p, enabled=body.enabled)
+        return {"notifications_enabled": a.notifications_enabled}
+
+    @app.get("/children/{child_id}/notifications", response_model=list[NotificationOut])
+    def child_notifications(child_id: str, since: datetime | None = None,
+                            p: ParentScope = Depends(_parent)):
+        svc._parent_owns_child(p, child_id)
+        return [
+            NotificationOut(child_id=n.child_id, kind=n.kind, text=n.text, at=n.at)
+            for n in svc.events.parent_notifications_since(p.account_id, since)
+            if n.child_id == child_id
+        ]
 
     @app.get("/me/progress", response_model=ProgressOut)
     def me_progress(week_start: date, c: ChildScope = Depends(_child)):
