@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuestGrow — Parent</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: #f4f4f2; color: #1b1b1f; }
+  header { background: #001858; color: #fff; padding: 12px 18px; font-weight: 700; }
+  nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px; background: #fff;
+        border-bottom: 1px solid #ddd; }
+  nav button { border: none; background: #eef; padding: 8px 12px; border-radius: 8px;
+               font-weight: 600; cursor: pointer; }
+  nav button.active { background: #001858; color: #fff; }
+  main { padding: 16px; max-width: 860px; margin: 0 auto; }
+  .card { background: #fff; border: 1px solid #e2e2e2; border-radius: 12px; padding: 14px;
+          margin-bottom: 12px; }
+  h2 { margin: 4px 0 12px; font-size: 20px; }
+  h3 { margin: 0 0 8px; font-size: 16px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin-top: 8px; }
+  input, select { width: 100%; padding: 9px; border: 1px solid #ccc; border-radius: 8px;
+                  font-size: 14px; margin-top: 3px; }
+  button.act { background: #f582ae; color: #fff; border: none; padding: 9px 14px; border-radius: 8px;
+               font-weight: 700; cursor: pointer; margin-top: 10px; }
+  button.sec { background: #e6e6ef; color: #1b1b1f; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .muted { color: #6b6b6b; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid #eee; font-size: 14px; }
+  .err { color: #b00020; font-size: 13px; margin-top: 8px; }
+  .pill { display: inline-block; background: #eef; border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>QuestGrow — Parent</header>
+<nav id="nav" hidden></nav>
+<main id="root"></main>
+
+<script>
+const API = location.origin;
+const S = { session: "", token: sessionStorage.getItem("qg.parent.token") || "", view: "dashboard" };
+const root = document.getElementById("root");
+const nav = document.getElementById("nav");
+const VIEWS = [
+  ["dashboard", "Dashboard"], ["approvals", "Approvals"], ["quests", "Quests"],
+  ["rewards", "Rewards"], ["ownership", "Ownership"], ["progress", "Progress"],
+];
+const today = () => new Date().toISOString().slice(0, 10);
+const monday = () => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + S.token, ...(opts.headers || {}) },
+  });
+  if (!r.ok) throw Object.assign(new Error(await r.text()), { status: r.status });
+  return r.status === 204 ? null : r.json();
+}
+async function pub(path, body) {
+  const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) throw Object.assign(new Error(await r.text()), { status: r.status });
+  return r.json();
+}
+
+// ---------- auth / parent gate ----------
+function renderGate(msg) {
+  nav.hidden = true;
+  root.innerHTML = `<div class="card" style="max-width:420px;margin:24px auto">
+    <h2>Sign in</h2>
+    <label>Email <input id="em" type="email"></label>
+    <label>Password <input id="pw" type="password"></label>
+    <label>Parent PIN <input id="pin" type="password" inputmode="numeric"></label>
+    <button class="act" id="go">Unlock parent mode</button>
+    <button class="act sec" id="su">Create account</button>
+    ${msg ? `<div class="err">${msg}</div>` : ""}
+    <p class="muted">The PIN is the parent gate — it is required every session.</p>
+  </div>`;
+  document.getElementById("go").onclick = async () => {
+    try {
+      const em = em_.value, pw = pw_.value, pin = pin_.value;
+      const s = await pub("/auth/login", { email: em, password: pw });
+      const p = await pub("/auth/unlock", { session_token: s.session_token, pin });
+      S.token = p.parent_token; sessionStorage.setItem("qg.parent.token", S.token);
+      go("dashboard");
+    } catch (e) { renderGate("Sign-in failed. Check email, password and PIN."); }
+  };
+  document.getElementById("su").onclick = async () => {
+    try {
+      await pub("/auth/signup", { email: em_.value, password: pw_.value, pin: pin_.value });
+      renderGate("Account created — now unlock parent mode.");
+    } catch (e) { renderGate("Could not create account (email may be taken)."); }
+  };
+  window.em_ = document.getElementById("em"); window.pw_ = document.getElementById("pw"); window.pin_ = document.getElementById("pin");
+}
+
+// ---------- shared ----------
+async function children() { try { return await api("/children"); } catch { return childCache; } }
+let childCache = [];
+async function childPicker(id = "childpick") {
+  // there is no list endpoint in the reference API; operator enters child ids they created.
+  const saved = JSON.parse(localStorage.getItem("qg.parent.children") || "[]");
+  childCache = saved;
+  return `<label>Child id <input id="${id}" list="kids" value="${saved[0] || ""}"></label>
+    <datalist id="kids">${saved.map(c => `<option value="${c}">`).join("")}</datalist>`;
+}
+function rememberChild(cid) {
+  const s = new Set(JSON.parse(localStorage.getItem("qg.parent.children") || "[]"));
+  s.add(cid); localStorage.setItem("qg.parent.children", JSON.stringify([...s]));
+}
+
+// ---------- dashboard ----------
+async function renderDashboard() {
+  const kids = JSON.parse(localStorage.getItem("qg.parent.children") || "[]");
+  let cards = "";
+  for (const cid of kids) {
+    try {
+      const d = await api(`/children/${cid}/dashboard?day=${today()}&week_start=${monday()}`);
+      cards += `<div class="card"><h3>${cid}</h3>
+        <p>Today: ${d.verified}/${d.total} done · <span class="pill">${d.pending} waiting</span></p>
+        <p class="muted">Showed up ${d.week_active_days} days this week.</p></div>`;
+    } catch {}
+  }
+  root.innerHTML = `<h2>Dashboard</h2>
+    <div class="card">
+      <h3>Add a child</h3>
+      <label>Child id <input id="ncid"></label>
+      <label>Name <input id="nnm"></label>
+      <label>Age band <select id="nab"><option>3-4</option><option selected>5-6</option><option>7-8</option></select></label>
+      <button class="act" id="addc">Create child</button>
+      <button class="act sec" id="seed">Add starter quests</button>
+    </div>
+    <div class="card"><h3>Get a child sign-in code</h3>
+      ${await childPicker("tokc")}
+      <button class="act" id="mint">Create code</button>
+      <p id="code" class="muted"></p>
+    </div>
+    ${cards || '<p class="muted">No children yet.</p>'}`;
+  document.getElementById("addc").onclick = async () => {
+    await api("/children", { method: "POST", body: JSON.stringify({ child_id: ncid.value, name: nnm.value, age_band: nab.value }) });
+    rememberChild(ncid.value); go("dashboard");
+  };
+  document.getElementById("seed").onclick = async () => { await api("/quests/seed-starters", { method: "POST" }); alert("Starter quests added — see Quests."); };
+  document.getElementById("mint").onclick = async () => {
+    const r = await api("/auth/child-token", { method: "POST", body: JSON.stringify({ child_id: tokc.value }) });
+    document.getElementById("code").textContent = "Child code: " + r.child_token;
+  };
+}
+
+// ---------- approvals ----------
+async function renderApprovals() {
+  root.innerHTML = `<h2>Approvals</h2><div class="card">${await childPicker()}<button class="act" id="load">Load queue</button></div><div id="q"></div>`;
+  document.getElementById("load").onclick = load;
+  async function load() {
+    const cid = document.getElementById("childpick").value; rememberChild(cid);
+    const items = await api(`/children/${cid}/approvals`);
+    const q = document.getElementById("q");
+    if (!items.length) { q.innerHTML = '<p class="muted">Nothing waiting.</p>'; return; }
+    q.innerHTML = `<div class="card">
+      <button class="act" id="all">Approve all (${items.length})</button>
+      <table>${items.map(i => `<tr><td>${i.quest_id}</td><td>${i.on_date}</td>
+        <td><button class="act" data-a="${i.quest_id}|${i.on_date}">Approve</button>
+        <button class="act sec" data-n="${i.quest_id}|${i.on_date}">Not yet</button></td></tr>`).join("")}</table></div>`;
+    q.querySelectorAll("[data-a]").forEach(b => b.onclick = async () => {
+      const [qid, day] = b.dataset.a.split("|");
+      await api(`/children/${cid}/quests/${qid}/approve`, { method: "POST", body: JSON.stringify({ day }) }); load();
+    });
+    q.querySelectorAll("[data-n]").forEach(b => b.onclick = async () => {
+      const [qid, day] = b.dataset.n.split("|");
+      await api(`/children/${cid}/quests/${qid}/not-yet`, { method: "POST", body: JSON.stringify({ day, note: "" }) }); load();
+    });
+    document.getElementById("all").onclick = async () => {
+      for (const i of items) await api(`/children/${cid}/quests/${i.quest_id}/approve`, { method: "POST", body: JSON.stringify({ day: i.on_date }) });
+      load();
+    };
+  }
+  load();
+}
+
+// ---------- quests ----------
+async function renderQuests() {
+  root.innerHTML = `<h2>Quests</h2>
+    <div class="card"><h3>New quest</h3>
+      <label>Quest id <input id="qid"></label>
+      <label>Title <input id="qt"></label>
+      <label>Icon <input id="qi" value="⭐"></label>
+      <div class="row"><label>Points <input id="qp" type="number" value="10"></label>
+      <label>Recurrence <select id="qr"><option>daily</option><option>weekdays</option><option>weekly</option></select></label></div>
+      <button class="act" id="create">Create + schedule</button>
+      <button class="act sec" id="seed">One-tap starter templates</button>
+    </div>
+    <div class="card"><h3>Edit / archive</h3>
+      <label>Quest id <input id="eid"></label>
+      <div class="row"><label>New title <input id="et"></label><label>New points <input id="ep" type="number"></label></label></div>
+      <button class="act" id="save">Apply going forward</button>
+      <button class="act sec" id="arch">Archive</button>
+      <p class="muted">Edits apply to future days; past completions keep their version.</p>
+    </div>
+    <div class="card"><h3>Assign to a child</h3>${await childPicker("aq")}
+      <label>Quest id <input id="aqid"></label><button class="act" id="assign">Assign</button></div>`;
+  document.getElementById("create").onclick = async () => {
+    await api("/quests", { method: "POST", body: JSON.stringify({ quest_id: qid.value, title: qt.value, icon: qi.value, points: +qp.value }) });
+    await api(`/quests/${qid.value}/schedule`, { method: "PUT", body: JSON.stringify({ recurrence: qr.value }) });
+    alert("Created.");
+  };
+  document.getElementById("seed").onclick = async () => { await api("/quests/seed-starters", { method: "POST" }); alert("Templates added."); };
+  document.getElementById("save").onclick = async () => {
+    const body = {}; if (et.value) body.title = et.value; if (ep.value) body.points = +ep.value;
+    await api(`/quests/${eid.value}`, { method: "PATCH", body: JSON.stringify(body) }); alert("Saved.");
+  };
+  document.getElementById("arch").onclick = async () => { await api(`/quests/${eid.value}`, { method: "PATCH", body: JSON.stringify({ archived: true, active: false }) }); alert("Archived."); };
+  document.getElementById("assign").onclick = async () => {
+    const cid = document.getElementById("aq").value; rememberChild(cid);
+    await api(`/children/${cid}/quests`, { method: "POST", body: JSON.stringify({ quest_id: aqid.value }) }); alert("Assigned.");
+  };
+}
+
+// ---------- rewards ----------
+async function renderRewards() {
+  root.innerHTML = `<h2>Rewards</h2>
+    <div class="card"><h3>New reward</h3>
+      <label>Reward id <input id="rid"></label>
+      <label>Name <input id="rn"></label>
+      <label>Icon <input id="ric" value="🎁"></label>
+      <div class="row"><label>Cost <input id="rc" type="number" value="50"></label>
+      <label>Redemption <select id="rm"><option value="self_service">self-service</option><option value="parent_confirmed">parent-confirmed</option></select></label></div>
+      <button class="act" id="mk">Create</button></div>
+    <div class="card"><h3>Edit reward</h3>
+      <label>Reward id <input id="eid"></label>
+      <div class="row"><label>New name <input id="en"></label><label>New cost <input id="ec" type="number"></label></div>
+      <button class="act" id="sv">Save</button></div>`;
+  document.getElementById("mk").onclick = async () => {
+    await api("/rewards", { method: "POST", body: JSON.stringify({ reward_id: rid.value, name: rn.value, icon: ric.value, cost: +rc.value, mode: rm.value }) });
+    alert("Created.");
+  };
+  document.getElementById("sv").onclick = async () => {
+    const body = {}; if (en.value) body.name = en.value; if (ec.value) body.cost = +ec.value;
+    await api(`/rewards/${eid.value}`, { method: "PATCH", body: JSON.stringify(body) }); alert("Saved.");
+  };
+}
+
+// ---------- ownership ----------
+async function renderOwnership() {
+  root.innerHTML = `<h2>Ownership</h2>
+    <div class="card">${await childPicker("oc")}<button class="act" id="load">Load suggestions</button><div id="sg"></div></div>
+    <div class="card"><h3>Set support level for a quest</h3>
+      <label>Quest id <input id="oqid"></label>
+      <label>Level <select id="olvl">
+        <option value="PARENT_MANAGED">most support (parent does it together)</option>
+        <option value="PARENT_GUIDED" selected>guided (parent checks)</option>
+        <option value="CHILD_PARTICIPATED">child leads, no check</option>
+        <option value="CHILD_OWNED">child owns it</option>
+      </select></label>
+      <button class="act" id="set">Update</button>
+      <p class="muted">Moving to more support is a normal adjustment, never a setback.</p>
+    </div>`;
+  document.getElementById("load").onclick = load;
+  document.getElementById("set").onclick = async () => {
+    const cid = document.getElementById("oc").value; rememberChild(cid);
+    await api(`/children/${cid}/quests/${oqid.value}/ownership`, { method: "PUT", body: JSON.stringify({ target: olvl.value }) });
+    alert("Updated.");
+  };
+  async function load() {
+    const cid = document.getElementById("oc").value; rememberChild(cid);
+    const sug = await api(`/children/${cid}/suggestions`);
+    const sg = document.getElementById("sg");
+    sg.innerHTML = sug.length
+      ? sug.map(s => `<div class="row"><span>${s.quest_id}: ready for a bit more independence?</span>
+        <button class="act" data-y="${s.quest_id}">Yes, let's try</button>
+        <button class="act sec" data-l="${s.quest_id}">Ask me later</button></div>`).join("")
+      : '<p class="muted">No suggestions right now.</p>';
+    sg.querySelectorAll("[data-y]").forEach(b => b.onclick = async () => {
+      await api(`/children/${cid}/quests/${b.dataset.y}/suggestion/accept`, { method: "POST" }); load();
+    });
+    sg.querySelectorAll("[data-l]").forEach(b => b.onclick = async () => {
+      await api(`/children/${cid}/quests/${b.dataset.l}/suggestion/dismiss`, { method: "POST" }); load();
+    });
+  }
+  load();
+}
+
+// ---------- progress ----------
+async function renderProgress() {
+  root.innerHTML = `<h2>Progress</h2><div class="card">${await childPicker("pc")}<button class="act" id="load">Load</button><div id="pv"></div></div>`;
+  document.getElementById("load").onclick = load;
+  async function load() {
+    const cid = document.getElementById("pc").value; rememberChild(cid);
+    const d = await api(`/children/${cid}/dashboard?day=${today()}&week_start=${monday()}`);
+    document.getElementById("pv").innerHTML = `
+      <p>Today: ${d.verified} verified, ${d.pending} waiting, ${d.available} to do.</p>
+      <p>This week: showed up <strong>${d.week_active_days}</strong> ${d.week_active_days === 1 ? "day" : "days"}.</p>
+      <p class="muted">Progressive consistency — a quieter week is just a smaller number.</p>`;
+  }
+  load();
+}
+
+// ---------- shell ----------
+const RENDER = { dashboard: renderDashboard, approvals: renderApprovals, quests: renderQuests, rewards: renderRewards, ownership: renderOwnership, progress: renderProgress };
+async function go(view) {
+  S.view = view;
+  nav.hidden = false;
+  nav.innerHTML = VIEWS.map(([k, l]) => `<button data-v="${k}" class="${k === view ? "active" : ""}">${l}</button>`).join("");
+  nav.querySelectorAll("button").forEach(b => b.onclick = () => go(b.dataset.v));
+  try { await RENDER[view](); }
+  catch (e) { if (e.status === 401 || e.status === 403) { sessionStorage.removeItem("qg.parent.token"); S.token = ""; renderGate("Session expired — unlock again."); } else { root.innerHTML = `<p class="err">${e.message || "error"}</p>`; } }
+}
+if (S.token) go("dashboard"); else renderGate();
+</script>
+</body>
+</html>

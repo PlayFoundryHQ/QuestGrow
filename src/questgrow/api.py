@@ -20,9 +20,13 @@ from __future__ import annotations
 
 import secrets
 from datetime import date, datetime
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+_WEBCLIENT_DIR = Path(__file__).parent / "webclient"
 
 from .adaptation import ComplexityProfile
 from .entities import QuestSchedule
@@ -315,6 +319,19 @@ def create_app(
         from fastapi.responses import JSONResponse
 
         return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    # -- reference web clients (C5/C6) — static single-file apps ----
+    @app.get("/app/child", include_in_schema=False)
+    def _child_app():
+        return FileResponse(_WEBCLIENT_DIR / "child.html")
+
+    @app.get("/app/parent", include_in_schema=False)
+    def _parent_app():
+        return FileResponse(_WEBCLIENT_DIR / "parent.html")
+
+    @app.get("/", include_in_schema=False)
+    def _index():
+        return FileResponse(_WEBCLIENT_DIR / "parent.html")
 
     if auth is not None:
         @app.post("/auth/signup")

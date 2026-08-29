@@ -194,7 +194,8 @@ acceptance criteria in §9 and traceability to DECISION-001 … DECISION-016 in
 
 ## Deferred / future
 
-Multi-parent & verifier roles; web parent dashboard; long-term meta-game
+Multi-parent & verifier roles; production (non-reference) web/mobile clients;
+long-term meta-game
 services (characters/worlds/stories); reward marketplace; localization;
 custom art pipeline; parent-side analytics beyond daily/weekly projections.
 

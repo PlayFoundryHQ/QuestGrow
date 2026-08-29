@@ -29,8 +29,15 @@ a second lane on `EventSink`: the child celebration lane fires on every
 `completion.verified` (Mode-A on approval, Mode-B immediately); the parent
 notification lane fires only when `Account.notifications_enabled` is set
 (opt-in). Both are **poll**-based — `GET /me/celebrations?since=` (child) and
-`GET /children/{id}/notifications?since=` (parent); no push in MVP. **Not yet**
-implemented: the reference web clients (C5/C6) and any long-term meta-game. `PARENT_MANAGED` **is** implemented and
+`GET /children/{id}/notifications?since=` (parent); no push in MVP. C5/C6 add
+two thin static single-file clients under `webclient/` — `child.html`
+(Today / Do-it / Celebration / Progress; consumes `complexityProfile`; offline
+queue in `localStorage`, drops an item on a 409 per INV-11) and `parent.html`
+(PIN gate → dashboard / approvals + batch / quests + starter templates /
+rewards / ownership + suggestions / progress). Served at `/app/child` and
+`/app/parent`. Full end-to-end acceptance is D1's; `tests/test_webclient.py`
+covers transport wiring + the copy guarantees a source scan can verify.
+**Not yet** implemented: production mobile client, any long-term meta-game. `PARENT_MANAGED` **is** implemented and
 tested (it "remains a valid part of the contract" — DECISION-019) but nothing
 assigns it by default in MVP.
 
@@ -150,6 +157,9 @@ forged/cross-scope requests, OpenAPI scanned for the INV-8 boundary
 `tests/test_auth.py` — session token is not a parent scope, wrong PIN does not
 unlock, child tokens are per-child and non-escalatable, cross-account parent
 cannot mint a foreign child token, secrets stored hashed, parent-token expiry.
+`tests/test_webclient.py` — both reference clients served as HTML, no
+streak/downgrade/failure/"% owned" framing in either, child client calls only
+`/me/*`, offline queue + 409-drop wiring, `complexityProfile` consumed.
 `tests/test_notifications.py` — Mode-A event on approval only / Mode-B
 immediately, opt-out suppresses the parent feed but not the child celebration,
 runtime toggle, `since=` filter, template banned-phrase + no-second-person

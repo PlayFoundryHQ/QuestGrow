@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>QuestGrow</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: #fef6e4; color: #001858; min-height: 100vh; }
+  header { padding: 14px 18px; font-weight: 700; font-size: 18px; display: flex;
+           justify-content: space-between; align-items: center; }
+  #net { font-size: 13px; font-weight: 600; color: #7a6f53; }
+  #net.off { color: #b06a00; }
+  main { padding: 12px 16px 90px; max-width: 720px; margin: 0 auto; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .card { background: #fff; border-radius: 22px; padding: 22px 14px; text-align: center;
+          border: 3px solid #f3d9a4; cursor: pointer; user-select: none; }
+  .card .icon { font-size: 52px; line-height: 1.1; }
+  .card .label { margin-top: 8px; font-size: 16px; font-weight: 600; }
+  .card.pending { border-color: #8bd3dd; }
+  .card.verified { border-color: #7cc47c; opacity: .65; }
+  .hide-label .label { display: none; }
+  .bigbtn { display: block; width: 100%; padding: 26px; font-size: 24px; font-weight: 800;
+            border: none; border-radius: 26px; background: #f582ae; color: #fff; cursor: pointer; }
+  .backbtn { background: none; border: none; font-size: 16px; color: #001858; padding: 8px 0;
+             cursor: pointer; font-weight: 600; }
+  .waiting { text-align: center; font-size: 20px; padding: 40px 12px; color: #5a6a8a; }
+  .celebrate { text-align: center; padding: 48px 12px; }
+  .celebrate .burst { font-size: 84px; animation: pop .5s ease-out; }
+  .celebrate .pts { font-size: 22px; font-weight: 800; margin-top: 10px; }
+  @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .celebrate .burst { animation: none; } }
+  .week { display: flex; gap: 8px; justify-content: center; margin: 20px 0; }
+  .week .u { width: 34px; height: 34px; border-radius: 10px; background: #ece0c6; }
+  .week .u.on { background: #f9bc60; }
+  .setup { padding: 24px; }
+  .setup input { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #d9c8a0;
+                 border-radius: 12px; margin-top: 8px; }
+  .done { text-align: center; font-size: 18px; font-weight: 700; color: #7cc47c; margin-top: 18px; }
+  nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 2px solid #f3d9a4;
+        display: flex; }
+  nav button { flex: 1; padding: 14px 4px; background: none; border: none; font-size: 13px;
+               font-weight: 700; color: #8a7f63; cursor: pointer; }
+  nav button.active { color: #f582ae; }
+</style>
+</head>
+<body>
+<header><span>QuestGrow</span><span id="net">online</span></header>
+<main id="root"></main>
+<nav id="nav" hidden>
+  <button data-go="today" class="active">Today</button>
+  <button data-go="progress">Progress</button>
+</nav>
+
+<script>
+// ---- reference child client. Talks only to /me/* (child-scoped token). ----
+// INV-8: this client renders no ownership vocabulary at all; the only per-quest
+// distinction it shows is the single boolean waits_for_grownup. The child copy
+// has only positive and neutral states — never a negative one.
+const API = location.origin;
+const LS = { tok: "qg.child.token", queue: "qg.child.queue", seen: "qg.child.cseen" };
+const state = { token: localStorage.getItem(LS.tok) || "", profile: null, items: [], view: "today", current: null };
+const root = document.getElementById("root");
+const nav = document.getElementById("nav");
+const netEl = document.getElementById("net");
+const today = () => new Date().toISOString().slice(0, 10);
+
+function setNet() {
+  const on = navigator.onLine;
+  netEl.textContent = on ? "online" : "offline";
+  netEl.classList.toggle("off", !on);
+}
+window.addEventListener("online", () => { setNet(); flushQueue().then(render); });
+window.addEventListener("offline", setNet);
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + state.token, ...(opts.headers || {}) },
+  });
+  if (!r.ok) throw Object.assign(new Error("http " + r.status), { status: r.status });
+  return r.status === 204 ? null : r.json();
+}
+
+function queueGet() { try { return JSON.parse(localStorage.getItem(LS.queue) || "[]"); } catch { return []; } }
+function queueSet(q) { localStorage.setItem(LS.queue, JSON.stringify(q)); }
+
+async function flushQueue() {
+  let q = queueGet();
+  const kept = [];
+  for (const it of q) {
+    try {
+      await api(`/me/quests/${encodeURIComponent(it.quest_id)}/complete`, {
+        method: "POST", body: JSON.stringify({ day: it.day, note: "" }),
+      });
+    } catch (e) {
+      if (e.status === 409) { /* already resolved server-side — drop it (INV-11) */ }
+      else { kept.push(it); }
+    }
+  }
+  queueSet(kept);
+}
+
+async function loadToday() {
+  const p = await api(`/me/today?day=${today()}`);
+  state.profile = p.complexity_profile;
+  state.items = p.items;
+  return p;
+}
+
+async function markDone(quest) {
+  const body = { quest_id: quest.quest_id, day: today() };
+  try {
+    const res = await api(`/me/quests/${encodeURIComponent(quest.quest_id)}/complete`, {
+      method: "POST", body: JSON.stringify({ day: body.day, note: "" }),
+    });
+    if (res.state === "verified") return showCelebration();
+    return goWaiting();
+  } catch (e) {
+    if (!navigator.onLine || e.status >= 500) {
+      const q = queueGet(); q.push(body); queueSet(q);
+      return goWaiting();          // queued locally; syncs on reconnect
+    }
+    if (e.status === 409) return goWaiting();
+    throw e;
+  }
+}
+
+async function showCelebration() {
+  const since = localStorage.getItem(LS.seen) || "";
+  let ev = null;
+  try {
+    const evs = await api(`/me/celebrations?since=${encodeURIComponent(since)}`);
+    ev = evs[evs.length - 1] || null;
+    if (ev) localStorage.setItem(LS.seen, ev.at);
+  } catch {}
+  const pres = (state.profile && state.profile.reward_presentation) || "animation_progress";
+  const burst = pres === "big_animation" ? "🎉" : pres === "progress_collectibles" ? "⭐" : "✨";
+  state.view = "celebrate";
+  root.innerHTML = `<div class="celebrate">
+    <div class="burst">${burst}</div>
+    <div class="pts">${ev && ev.points_awarded ? "+" + ev.points_awarded : "Nice work!"}</div>
+    <button class="bigbtn" id="ok" style="margin-top:28px">Back to Today</button>
+  </div>`;
+  document.getElementById("ok").onclick = () => go("today");
+}
+
+function goWaiting() {
+  state.view = "waiting";
+  root.innerHTML = `<button class="backbtn" id="b">‹ Today</button>
+    <div class="waiting">👍<br>All done — waiting for your grown-up.</div>`;
+  document.getElementById("b").onclick = () => go("today");
+}
+
+function renderSetup() {
+  nav.hidden = true;
+  root.innerHTML = `<div class="setup">
+    <p>Ask your grown-up for your code.</p>
+    <input id="t" placeholder="paste code" autocomplete="off">
+    <button class="bigbtn" id="go" style="margin-top:14px">Start</button>
+  </div>`;
+  document.getElementById("go").onclick = () => {
+    const v = document.getElementById("t").value.trim();
+    if (!v) return;
+    state.token = v; localStorage.setItem(LS.tok, v); go("today");
+  };
+}
+
+async function renderToday() {
+  await loadToday();
+  const prof = state.profile || {};
+  const shown = prof.quests_shown_at_once || 5;
+  const hideLabel = prof.text_style === "icon_only";
+  const visible = state.items.slice(0, shown);
+  const cards = visible.map(it => `
+    <div class="card ${it.state}" data-q="${it.quest_id}">
+      <div class="icon">${it.icon || "⭐"}</div>
+      <div class="label">${it.title}</div>
+    </div>`).join("");
+  const allDone = visible.length > 0 && visible.every(it => it.state === "verified");
+  root.innerHTML = `<div class="grid ${hideLabel ? "hide-label" : ""}">${cards || "<p>Nothing for today 🌿</p>"}</div>
+    ${allDone ? '<div class="done">🌟 Day complete!</div>' : ""}`;
+  root.querySelectorAll(".card").forEach(el => {
+    el.onclick = () => {
+      const q = state.items.find(i => i.quest_id === el.dataset.q);
+      if (!q || q.state === "verified") return;
+      if (q.state === "pending") return goWaiting();
+      openDoIt(q);
+    };
+  });
+}
+
+function openDoIt(quest) {
+  state.current = quest;
+  state.view = "doit";
+  nav.hidden = true;
+  root.innerHTML = `<button class="backbtn" id="b">‹ Today</button>
+    <div style="text-align:center;margin:24px 0">
+      <div style="font-size:76px">${quest.icon || "⭐"}</div>
+      <div style="font-size:20px;font-weight:700;margin-top:8px">${quest.title}</div>
+    </div>
+    <button class="bigbtn" id="did">I did it!</button>`;
+  document.getElementById("b").onclick = () => go("today");
+  document.getElementById("did").onclick = async (e) => { e.target.disabled = true; await markDone(quest); };
+}
+
+async function renderProgress() {
+  const monday = (() => { const d = new Date(); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.toISOString().slice(0, 10); })();
+  const p = await api(`/me/progress?week_start=${monday}`);
+  const units = Array.from({ length: 7 }, (_, i) => `<div class="u ${i < p.week_active_days ? "on" : ""}"></div>`).join("");
+  root.innerHTML = `
+    <h3>This week</h3>
+    <div class="week">${units}</div>
+    <p style="text-align:center">You showed up ${p.week_active_days} ${p.week_active_days === 1 ? "day" : "days"} this week.</p>
+    <h3>Stars earned</h3>
+    <p style="text-align:center;font-size:28px;font-weight:800">${p.lifetime_achievement} ⭐</p>
+    <p style="text-align:center">To spend: ${p.spendable_balance}</p>`;
+}
+
+async function go(view) {
+  state.view = view;
+  nav.hidden = false;
+  nav.querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.go === view));
+  try {
+    if (view === "today") await renderToday();
+    else if (view === "progress") await renderProgress();
+  } catch (e) {
+    if (e.status === 401) return renderSetup();
+    root.innerHTML = `<p class="waiting">Can't reach QuestGrow right now.</p>`;
+  }
+}
+nav.querySelectorAll("button").forEach(b => b.onclick = () => go(b.dataset.go));
+
+async function render() { await go(state.view); }
+
+async function boot() {
+  setNet();
+  if (!state.token) return renderSetup();
+  await flushQueue();
+  render();
+}
+boot();
+</script>
+</body>
+</html>
