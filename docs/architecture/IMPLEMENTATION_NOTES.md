@@ -10,14 +10,17 @@
 
 ## Stack
 
-Python 3.11+, standard library only, `pytest`. Chosen because `ARCHITECTURE.md`
-leaves stack open ("decide against team skills"; none given) and a
-dependency-free domain library is the most auditable substrate for the
-acceptance tests. **Not** implemented: the HTTP/REST API, auth tokens /
-parent-gate, the mobile client (thin/presentational), a real datastore
-(`InMemoryRepository` is the seam — TOQ-7), and any long-term meta-game.
-`PARENT_MANAGED` **is** implemented and tested (it "remains a valid part of
-the contract" — DECISION-019) but nothing assigns it by default in MVP.
+Python 3.11+, `pytest`. The domain library (`enums`/`entities`/`ownership`/
+`scheduling`/`projections`/`service`) is dependency-free; C1 adds two seams on
+top — `adaptation.py` (the §13 `complexityProfile` resolver) and
+`sqlite_repository.py` (a `sqlite3`-backed `Repository`, Postgres-portable
+schema). `repository.Repository` is a `Protocol`; `InMemoryRepository` and
+`SqliteRepository` are drop-in and the full AC/INV suite runs against both.
+**Not yet** implemented (later C-phases): the HTTP/REST API (C2), auth tokens /
+parent-gate (C3), notification transport (C4), the reference web clients
+(C5/C6), and any long-term meta-game. `PARENT_MANAGED` **is** implemented and
+tested (it "remains a valid part of the contract" — DECISION-019) but nothing
+assigns it by default in MVP.
 
 ## Module → contract map
 
@@ -31,7 +34,9 @@ the contract" — DECISION-019) but nothing assigns it by default in MVP.
 | `service.py` completion flow (`submit_completion`, `record_completion`, `approve`, `not_yet`, `_transition_to_verified`) | §4 QuestInstance state machine + "On verified" | INV-10, INV-11, INV-15 | AC-1, AC-2, AC-10, AC-11, AC-12 |
 | `service.py` ledger (`_award_earn`, `apply_adjustment`) + `repository.append_ledger` | §6, §7; TOQ-3, TOQ-5 | INV-11, INV-12, INV-13, INV-14 | AC-2, AC-6, AC-7, AC-12 |
 | `service.py` rewards (`redeem_reward`, `grant_redemption`, `decline_redemption`) | §6 redemption modes | INV-13, INV-18 | AC-6 |
-| `projections.py` (`lifetime_achievement`, `spendable_balance`, `TodayPayload`, `WeeklyConsistency`) | §7 | INV-8, INV-9, INV-13, INV-16 | AC-8, AC-9 |
+| `projections.py` (`lifetime_achievement`, `spendable_balance`, `TodayPayload`, `WeeklyConsistency`, `DailyProgress`) | §7 | INV-8, INV-9, INV-13, INV-16 | AC-8, AC-9 |
+| `adaptation.py` (`ComplexityProfile`, `resolve_complexity_profile`) | §13 | INV-8 (no stage/level field — structural) | — |
+| `repository.py` (`Repository` protocol) + `sqlite_repository.py` (`SqliteRepository`, `SCHEMA`) | §10 / TOQ-7; append-only ledger | INV-1, INV-11, INV-12 | AC-2, AC-12 |
 | `events.py` (`EventSink`, `CelebrationEvent`) | §4 `completion.verified`; ARCHITECTURE notification service | INV-8 (no stage label in event) | AC-1, AC-2, AC-10 |
 | `service.py` ownership stage service (`set_ownership_stage`, `advancement_suggestions`, `accept/dismiss`) | §3, §5; DECISION-008/017 | INV-5, INV-6 | AC-3, AC-4, AC-13, AC-15 |
 | `service.py` `materialise_day` / `end_of_day` | §4 `→ expired`; TOQ-7 | INV-6 (sweep never touches stage), INV-16 | AC-14 |
@@ -95,30 +100,26 @@ Implemented as "once per ISO week on an anchor weekday", where the anchor is
 the single weekday in `weekdays` if given, else the schedule `start` weekday,
 else Monday. Purely a scheduling mechanic; no product weight.
 
-## Known defects (surfaced by the Phase B backlog audit — fix in the persistence phase)
+## Known defects
 
-### IL-5 — quest-version instance lookup
+### IL-5 — quest-version instance lookup — **RESOLVED (C1)**
 
-`_get_instance` and `materialise_day` key `QuestInstance` lookups on
-`latest_quest().version`. `edit_quest` creates a new version; existing
-instances correctly keep their creation version (`QUEST_MODEL`), but after an
-edit **the same day**: (a) `submit_completion` / `approve` for a pre-edit
-instance raise `NotFound`, and (b) re-running `materialise_day` creates a
-**second** instance for the same `(quest, child, date)` at the new version.
-
-Fix (small): resolve/complete instances by `(quest_id, child_id, date)` across
-all versions; guard `materialise_day` against a same-day duplicate at any
+`_get_instance` and `materialise_day` previously keyed `QuestInstance` lookups
+on `latest_quest().version`, so after a same-day `edit_quest` a pre-edit
+instance became unaddressable and `materialise_day` duplicated it at the new
 version.
 
-**Regression test (present now):**
-`test_il5_quest_edit_midday_keeps_instance_addressable_and_no_duplicate` in
-`tests/test_acceptance.py`, marked `xfail(strict=True)` — it encodes the bug
-today and will flip to a hard failure (forcing removal of the marker) when C1
-lands the fix.
+**Fix (C1):** all instance resolution goes through
+`Repository.get_instance_any_version(quest_id, child_id, date)`, which returns
+the newest-version instance for that `(quest, child, date)`. `materialise_day`
+uses the same call as its same-day duplicate guard. Instances still keep the
+version they were created under (`QUEST_MODEL` unchanged).
 
-Contract-consistent (`QUEST_MODEL` versioning is correct); this is an
-implementation defect, not contract drift. The fix is folded into the
-persistence issue (C1).
+**Regression test:**
+`test_il5_quest_edit_midday_keeps_instance_addressable_and_no_duplicate` in
+`tests/test_acceptance.py` (now a plain passing test; the `xfail` marker is
+gone). Contract-consistent — this was an implementation defect, not contract
+drift.
 
 ## Test coverage
 
@@ -126,17 +127,19 @@ persistence issue (C1).
 (issue #18).
 `tests/test_invariants.py` — INV-1 … INV-18, one test each (structural scans
 for INV-1/4/8/9; behavioural for the rest).
+`tests/test_c1_persistence.py` — `InMemory`/`Sqlite` parity flow, `edit_reward`,
+`set_child_profile`, `daily_progress`, `seed_starter_quests`, `complexityProfile`
+in `today()` + the INV-8 no-stage/level guard, and a schema no-drift scan.
 
-Run: `python3 -m pytest -q` (from the repo root).
+Run: `python3 -m pytest -q` (from the repo root). The domain + C1 suite needs
+no third-party packages; later C-phases add `fastapi`/`httpx` (use a venv —
+`.venv/bin/python -m pytest -q`).
 
 ## Known implementation gaps (deferred — out of MVP-subsystem scope)
 
-- HTTP/API surface, auth tokens, parent-gate challenge.
-- Real persistence (engine/schema — an open construction question).
-- Notification delivery transport (only the event sink interface exists).
-- Age-adaptation *rendering* values in `complexityProfile` (only the structural
-  guarantee — no stage/level — is implemented).
-- Mobile client.
+- HTTP/API surface, auth tokens, parent-gate challenge (C2/C3).
+- Notification delivery transport (only the event sink interface exists) (C4).
+- Reference web clients (C5/C6); production mobile client (post-readiness).
 - `PARENT_MANAGED` assignment UX (DECISION-019 — post-MVP).
 - Optional evidence photos, long-term meta-game, multi-caregiver (all
   post-MVP / deferred in the contract).

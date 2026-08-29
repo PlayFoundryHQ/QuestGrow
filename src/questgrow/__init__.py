@@ -23,8 +23,10 @@ from .enums import (
 )
 from .errors import AuthorizationError, ContractViolation, NotFound, QuestGrowError
 from .events import CelebrationEvent, EventSink
+from .adaptation import ComplexityProfile, resolve_complexity_profile
 from .entities import QuestSchedule
-from .repository import InMemoryRepository
+from .repository import InMemoryRepository, Repository
+from .sqlite_repository import SqliteRepository
 from .scope import ChildScope, ParentScope, ServerScope
 from .service import DEFAULT_ADVANCEMENT_THRESHOLD, QuestGrowService
 
@@ -32,6 +34,10 @@ __all__ = [
     "QuestGrowService",
     "DEFAULT_ADVANCEMENT_THRESHOLD",
     "InMemoryRepository",
+    "SqliteRepository",
+    "Repository",
+    "ComplexityProfile",
+    "resolve_complexity_profile",
     "EventSink",
     "CelebrationEvent",
     "ChildScope",

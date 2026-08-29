@@ -5,6 +5,12 @@ Every write to authoritative state passes through here behind a scope check
 INV-10, INV-12, INV-15, INV-17, INV-18 are enforced in this module rather
 than in a UI.
 
+Persistence is reached only through the ``Repository`` protocol
+(``repository.Repository``); the service never touches storage internals, so
+``InMemoryRepository`` and ``sqlite_repository.SqliteRepository`` are drop-in
+(TOQ-7). Authoritative dataclasses are mutated in place and handed back via an
+explicit ``save_*`` call so the SQL backend can persist the change.
+
 Subsystems represented (ARCHITECTURE "API services"):
   * auth / actor scoping                    -> _require_parent / _require_child
   * quest & schedule service                -> create_quest / set_schedule / materialise_day
@@ -12,7 +18,7 @@ Subsystems represented (ARCHITECTURE "API services"):
   * completion / verification service       -> submit_completion / approve / not_yet / record_completion
   * progress ledger                         -> _award_earn / apply_adjustment (append-only)
   * rewards service                         -> redeem_reward / grant_redemption
-  * age-adaptation resolver (default stage) -> assign_quest
+  * age-adaptation resolver                 -> today() complexityProfile
   * notification service                    -> EventSink
 """
 
@@ -21,6 +27,7 @@ from __future__ import annotations
 import itertools
 from datetime import date, datetime, timezone
 
+from .adaptation import ComplexityProfile, resolve_complexity_profile
 from .entities import (
     Account,
     AdvancementSuggestion,
@@ -38,7 +45,6 @@ from .entities import (
     RewardRedemption,
 )
 from .enums import (
-    Actor,
     InstanceState,
     LedgerKind,
     OwnershipStage,
@@ -58,17 +64,27 @@ from .ownership import (
     should_suggest_advancement,
 )
 from .projections import (
+    DailyProgress,
     TodayItem,
     TodayPayload,
     WeeklyConsistency,
     lifetime_achievement,
     spendable_balance,
 )
-from .repository import InMemoryRepository, InstanceRecord
+from .repository import InMemoryRepository, Repository
 from .scheduling import due_on
-from .scope import ChildScope, ParentScope, ServerScope
+from .scope import ChildScope, ParentScope
 
 DEFAULT_ADVANCEMENT_THRESHOLD = 8  # DECISION-009: tunable product default, lives in config.
+
+# Starter templates — a small, culturally-neutral on-ramp set. Not assigned
+# on seed; the parent picks. No product weight (helper content only).
+STARTER_TEMPLATES: tuple[dict[str, object], ...] = (
+    {"quest_id": "teeth", "title": "Brush teeth", "icon": "🪥", "points": 10},
+    {"quest_id": "get-dressed", "title": "Get dressed", "icon": "👕", "points": 10},
+    {"quest_id": "tidy-up", "title": "Tidy up toys", "icon": "🧸", "points": 10},
+    {"quest_id": "wash-hands", "title": "Wash hands", "icon": "🧼", "points": 5},
+)
 
 
 def _now() -> datetime:
@@ -78,12 +94,12 @@ def _now() -> datetime:
 class QuestGrowService:
     def __init__(
         self,
-        repo: InMemoryRepository | None = None,
+        repo: Repository | None = None,
         events: EventSink | None = None,
         advancement_threshold: int = DEFAULT_ADVANCEMENT_THRESHOLD,
         pending_grace_days: int | None = 1,  # IL-1 resolved: pending survives to date+N, then expires silently (None == never)
     ) -> None:
-        self.repo = repo or InMemoryRepository()
+        self.repo: Repository = repo or InMemoryRepository()
         self.events = events or EventSink()
         self.advancement_threshold = advancement_threshold
         self.pending_grace_days = pending_grace_days
@@ -108,7 +124,7 @@ class QuestGrowService:
         return scope
 
     def _parent_owns_child(self, parent: ParentScope, child_id: str) -> Child:
-        child = self.repo.children.get(child_id)
+        child = self.repo.get_child(child_id)
         if child is None:
             raise NotFound(f"child {child_id}")
         if child.account_id != parent.account_id:
@@ -128,13 +144,58 @@ class QuestGrowService:
         self.repo.add_account(a)
         return a
 
-    def add_child(self, parent, *, child_id: str, name: str, age_band: str = "5-6") -> Child:
+    def add_child(
+        self,
+        parent,
+        *,
+        child_id: str,
+        name: str,
+        age_band: str = "5-6",
+        avatar: str = "",
+        birthdate: date | None = None,
+    ) -> Child:
         p = self._require_parent(parent)
-        if child_id in self.repo.children:
+        if self.repo.get_child(child_id) is not None:
             raise ContractViolation("child_id already exists")
-        c = Child(child_id=child_id, account_id=p.account_id, name=name, age_band=age_band)
+        c = Child(
+            child_id=child_id,
+            account_id=p.account_id,
+            name=name,
+            avatar=avatar,
+            age_band=age_band,
+            birthdate=birthdate,
+        )
         self.repo.add_child(c)
         return c
+
+    def set_child_profile(
+        self,
+        parent,
+        *,
+        child_id: str,
+        name: str | None = None,
+        avatar: str | None = None,
+        age_band: str | None = None,
+        birthdate: date | None = None,
+        adaptation_overrides: dict[str, str] | None = None,
+    ) -> Child:
+        """Parent edits a child's presentation profile (INV-5). Touches no
+        ownership state and no ledger — purely rendering/adaptation inputs.
+        """
+        p = self._require_parent(parent)
+        child = self._parent_owns_child(p, child_id)
+        if name is not None:
+            child.name = name
+        if avatar is not None:
+            child.avatar = avatar
+        if age_band is not None:
+            child.age_band = age_band
+        if birthdate is not None:
+            child.birthdate = birthdate
+        if adaptation_overrides is not None:
+            child.adaptation_overrides = dict(adaptation_overrides)
+        self.repo.save_child(child)
+        return child
 
     def create_quest(
         self, parent, *, quest_id: str, title: str, icon: str, points: int = 10
@@ -151,6 +212,28 @@ class QuestGrowService:
         )
         self.repo.add_quest(q)
         return q
+
+    def seed_starter_quests(self, parent) -> list[Quest]:
+        """Create the starter-template quests + daily schedules for this
+        account (skipping any that already exist). Nothing is assigned — the
+        parent chooses which children get which quest. Helper content only.
+        """
+        p = self._require_parent(parent)
+        created: list[Quest] = []
+        for tpl in STARTER_TEMPLATES:
+            qid = str(tpl["quest_id"])
+            if self.repo.latest_quest(qid) is not None:
+                continue
+            q = self.create_quest(
+                p,
+                quest_id=qid,
+                title=str(tpl["title"]),
+                icon=str(tpl["icon"]),
+                points=int(tpl["points"]),  # type: ignore[call-overload]
+            )
+            self.repo.add_schedule(QuestSchedule(qid))
+            created.append(q)
+        return created
 
     def edit_quest(self, parent, *, quest_id: str, **changes) -> Quest:
         """Edits are versioned/forward-applying (§2). Existing instances keep
@@ -189,7 +272,31 @@ class QuestGrowService:
         if cost < 0:
             raise ContractViolation("reward cost must be >= 0")
         r = Reward(reward_id, p.account_id, name, icon, cost, mode)
-        self.repo.rewards[reward_id] = r
+        self.repo.add_reward(r)
+        return r
+
+    def edit_reward(self, parent, *, reward_id: str, **changes) -> Reward:
+        """Parent edits a reward in place (INV-5). Redemptions already granted
+        are untouched (the ledger is append-only, INV-12)."""
+        p = self._require_parent(parent)
+        r = self.repo.get_reward(reward_id)
+        if r is None:
+            raise NotFound(f"reward {reward_id}")
+        if r.account_id != p.account_id:
+            raise AuthorizationError("parent does not own this reward")
+        if "name" in changes:
+            r.name = changes["name"]
+        if "icon" in changes:
+            r.icon = changes["icon"]
+        if "cost" in changes:
+            if changes["cost"] < 0:
+                raise ContractViolation("reward cost must be >= 0")
+            r.cost = changes["cost"]
+        if "mode" in changes:
+            r.redemption_mode = changes["mode"]
+        if "active" in changes:
+            r.active = changes["active"]
+        self.repo.save_reward(r)
         return r
 
     # ------------------------------------------------------------------ #
@@ -241,7 +348,8 @@ class QuestGrowService:
         before = cq.ownership_stage.value
         cq.ownership_stage = target
         cq.consecutive_ok_count = counter_after_transition(cq.consecutive_ok_count)
-        self.repo.suggestions.pop((child_id, quest_id), None)
+        self.repo.save_child_quest(cq)
+        self.repo.delete_suggestion(child_id, quest_id)
         self._audit(
             f"parent:{p.account_id}",
             f"ownership_{plan.direction}",
@@ -254,13 +362,10 @@ class QuestGrowService:
     def advancement_suggestions(self, parent, *, child_id: str) -> list[AdvancementSuggestion]:
         p = self._require_parent(parent)
         self._parent_owns_child(p, child_id)
-        return [
-            s for (c, _), s in self.repo.suggestions.items()
-            if c == child_id and not s.dismissed
-        ]
+        return [s for s in self.repo.suggestions_of(child_id) if not s.dismissed]
 
     def accept_advancement_suggestion(self, parent, *, child_id: str, quest_id: str):
-        s = self.repo.suggestions.get((child_id, quest_id))
+        s = self.repo.get_suggestion(child_id, quest_id)
         if s is None or s.dismissed:
             raise NotFound("no outstanding advancement suggestion")
         return self.set_ownership_stage(
@@ -272,16 +377,17 @@ class QuestGrowService:
     ) -> None:
         p = self._require_parent(parent)
         self._parent_owns_child(p, child_id)
-        key = (child_id, quest_id)
-        s = self.repo.suggestions.get(key)
+        s = self.repo.get_suggestion(child_id, quest_id)
         if s is None:
             return
         if permanent:
-            self.repo.suggestions[key] = AdvancementSuggestion(
-                s.child_id, s.quest_id, s.from_stage, s.to_stage, dismissed=True
+            self.repo.put_suggestion(
+                AdvancementSuggestion(
+                    s.child_id, s.quest_id, s.from_stage, s.to_stage, dismissed=True
+                )
             )
         else:
-            self.repo.suggestions.pop(key, None)  # "ask me later" — may re-emit
+            self.repo.delete_suggestion(child_id, quest_id)  # "ask me later" — may re-emit
 
     # ------------------------------------------------------------------ #
     # scheduling / clock                                                 #
@@ -289,17 +395,22 @@ class QuestGrowService:
     def materialise_day(self, day: date) -> list[QuestInstance]:
         """Eager per-day instance materialisation (TOQ-7). One
         ``QuestInstance`` per assigned quest that is scheduled on ``day``.
+
+        IL-5 fix (C1): the same-day duplicate guard is by
+        ``(quest_id, child_id, date)`` across **all** versions — after a
+        mid-day ``edit_quest`` the pre-edit instance still counts, so no second
+        instance is created at the new version.
         """
         created: list[QuestInstance] = []
-        for (child_id, quest_id), cq in self.repo.child_quests.items():
+        for cq in self.repo.all_child_quests():
+            child_id, quest_id = cq.child_id, cq.quest_id
             latest = self.repo.latest_quest(quest_id)
             if latest is None or latest.archived or not latest.active:
                 continue
-            schedule = self.repo.schedules.get(quest_id)
+            schedule = self.repo.get_schedule(quest_id)
             if schedule is None or not due_on(schedule, day):
                 continue
-            key = (quest_id, latest.id.version, child_id, day.isoformat())
-            if key in self.repo.instances:
+            if self.repo.get_instance_any_version(quest_id, child_id, day) is not None:
                 continue
             inst = QuestInstance(
                 quest_id=quest_id,
@@ -307,7 +418,7 @@ class QuestGrowService:
                 child_id=child_id,
                 on_date=day,
             )
-            self.repo.instances[key] = InstanceRecord(inst)
+            self.repo.put_instance(inst)
             created.append(inst)
         return created
 
@@ -328,12 +439,12 @@ class QuestGrowService:
         ``pending_grace_days = None`` disables pending expiry entirely.
         """
         expired: list[QuestInstance] = []
-        for rec in self.repo.instances.values():
-            inst = rec.instance
+        for inst in self.repo.all_instances():
             if inst.on_date > day:
                 continue
             if inst.state is InstanceState.AVAILABLE:
                 inst.state = InstanceState.EXPIRED
+                self.repo.save_instance(inst)
                 expired.append(inst)
             elif (
                 inst.state is InstanceState.PENDING
@@ -341,6 +452,7 @@ class QuestGrowService:
                 and (day - inst.on_date).days >= self.pending_grace_days
             ):
                 inst.state = InstanceState.EXPIRED
+                self.repo.save_instance(inst)
                 expired.append(inst)
             # DECISION-018: expiry is neutral for consecutive_ok_count — no counter change here.
         return expired
@@ -349,14 +461,15 @@ class QuestGrowService:
     # completion / verification service (TECHNICAL_MODEL §4)             #
     # ------------------------------------------------------------------ #
     def _get_instance(self, quest_id: str, child_id: str, day: date) -> QuestInstance:
-        latest = self.repo.latest_quest(quest_id)
-        if latest is None:
+        """IL-5 fix (C1): resolve by ``(quest_id, child_id, date)`` across all
+        versions, so an instance created before a same-day ``edit_quest`` stays
+        addressable (QUEST_MODEL: it keeps its creation version)."""
+        if self.repo.latest_quest(quest_id) is None:
             raise NotFound(f"quest {quest_id}")
-        key = (quest_id, latest.id.version, child_id, day.isoformat())
-        rec = self.repo.instances.get(key)
-        if rec is None:
+        inst = self.repo.get_instance_any_version(quest_id, child_id, day)
+        if inst is None:
             raise NotFound(f"no quest instance for {child_id}:{quest_id}:{day.isoformat()}")
-        return rec.instance
+        return inst
 
     def _child_quest(self, child_id: str, quest_id: str) -> ChildQuest:
         cq = self.repo.get_child_quest(child_id, quest_id)
@@ -386,18 +499,21 @@ class QuestGrowService:
         if inst.state not in (InstanceState.AVAILABLE,):
             raise ContractViolation(f"instance is {inst.state}, cannot submit")
 
-        self.repo.completion_requests[self._id("cr")] = CompletionRequest(
-            id=self._id("cr"),
-            quest_instance_key=inst.key,
-            child_id=child_id,
-            created_at=_now(),
-            note=note,
+        self.repo.add_completion_request(
+            CompletionRequest(
+                id=self._id("cr"),
+                quest_instance_key=inst.key,
+                child_id=child_id,
+                created_at=_now(),
+                note=note,
+            )
         )
 
         if behaviour is VerificationBehaviour.IMMEDIATE:
             self._transition_to_verified(inst, cq)
         else:  # REQUIRES_APPROVAL
             inst.state = InstanceState.PENDING
+            self.repo.save_instance(inst)
         return inst
 
     def record_completion(
@@ -447,8 +563,10 @@ class QuestGrowService:
             raise ContractViolation(f"instance is {inst.state}, nothing to decline")
         inst.state = InstanceState.AVAILABLE
         inst.parent_note = note
+        self.repo.save_instance(inst)
         cq.consecutive_ok_count = counter_after_not_yet(cq.consecutive_ok_count)
-        self.repo.suggestions.pop((child_id, quest_id), None)
+        self.repo.save_child_quest(cq)
+        self.repo.delete_suggestion(child_id, quest_id)
         return inst
 
     def _transition_to_verified(self, inst: QuestInstance, cq: ChildQuest) -> None:
@@ -461,6 +579,7 @@ class QuestGrowService:
             return  # idempotent
         inst.state = InstanceState.VERIFIED
         inst.stage_at_completion = cq.ownership_stage
+        self.repo.save_instance(inst)
 
         points = self._award_earn(inst, cq)
         self.events.emit_celebration(
@@ -473,6 +592,7 @@ class QuestGrowService:
             )
         )
         cq.consecutive_ok_count = counter_after_completed(cq.consecutive_ok_count)
+        self.repo.save_child_quest(cq)
         self._maybe_suggest_advancement(cq)
 
     def _award_earn(self, inst: QuestInstance, cq: ChildQuest) -> int:
@@ -480,8 +600,10 @@ class QuestGrowService:
         identity (INV-11 / TOQ-3). Points come from the Quest only, never the
         stage (INV-14). Skipped entirely when points are disabled account-wide.
         """
-        child = self.repo.children[inst.child_id]
-        account = self.repo.accounts[child.account_id]
+        child = self.repo.get_child(inst.child_id)
+        assert child is not None
+        account = self.repo.get_account(child.account_id)
+        assert account is not None
         quest = self.repo.get_quest(QuestId(inst.quest_id, inst.quest_version))
         assert quest is not None
         if not account.points_enabled or quest.points == 0:
@@ -505,16 +627,17 @@ class QuestGrowService:
         )
         if nxt is None:
             return
-        key = (cq.child_id, cq.quest_id)
-        existing = self.repo.suggestions.get(key)
+        existing = self.repo.get_suggestion(cq.child_id, cq.quest_id)
         if existing is not None and existing.dismissed:
             return  # permanently dismissed
         # at most one outstanding suggestion per ChildQuest (§3)
-        self.repo.suggestions[key] = AdvancementSuggestion(
-            child_id=cq.child_id,
-            quest_id=cq.quest_id,
-            from_stage=cq.ownership_stage,
-            to_stage=nxt,
+        self.repo.put_suggestion(
+            AdvancementSuggestion(
+                child_id=cq.child_id,
+                quest_id=cq.quest_id,
+                from_stage=cq.ownership_stage,
+                to_stage=nxt,
+            )
         )
 
     # ------------------------------------------------------------------ #
@@ -534,7 +657,7 @@ class QuestGrowService:
             created_at=_now(),
             flagged_problem=flagged,
         )
-        self.repo.parent_reviews.append(review)
+        self.repo.add_parent_review(review)
         # INV-15: deliberately nothing else happens — no state change, no ledger
         # touch, no celebration reversal, even when flagged=True.
         return review
@@ -568,7 +691,7 @@ class QuestGrowService:
     # ------------------------------------------------------------------ #
     def redeem_reward(self, child_scope, *, child_id: str, reward_id: str) -> RewardRedemption:
         self._require_child(child_scope, child_id)
-        reward = self.repo.rewards.get(reward_id)
+        reward = self.repo.get_reward(reward_id)
         if reward is None:
             raise NotFound(f"reward {reward_id}")
         balance = spendable_balance(self.repo.ledger_for(child_id))
@@ -585,34 +708,37 @@ class QuestGrowService:
             self._write_redeem(child_id, reward)
             red.state = RedemptionState.GRANTED
             red.resolved_at = _now()
-        self.repo.redemptions[red.id] = red
+        self.repo.add_redemption(red)
         return red
 
     def grant_redemption(self, parent, *, redemption_id: str) -> RewardRedemption:
         p = self._require_parent(parent)
-        red = self.repo.redemptions.get(redemption_id)
+        red = self.repo.get_redemption(redemption_id)
         if red is None:
             raise NotFound(f"redemption {redemption_id}")
         self._parent_owns_child(p, red.child_id)
         if red.state is not RedemptionState.PENDING:
             raise ContractViolation(f"redemption is {red.state}")
-        reward = self.repo.rewards[red.reward_id]
+        reward = self.repo.get_reward(red.reward_id)
+        assert reward is not None
         balance = spendable_balance(self.repo.ledger_for(red.child_id))
         if balance < reward.cost:
             raise ContractViolation("insufficient Spendable Balance")
         self._write_redeem(red.child_id, reward)
         red.state = RedemptionState.GRANTED
         red.resolved_at = _now()
+        self.repo.save_redemption(red)
         return red
 
     def decline_redemption(self, parent, *, redemption_id: str) -> RewardRedemption:
         p = self._require_parent(parent)
-        red = self.repo.redemptions.get(redemption_id)
+        red = self.repo.get_redemption(redemption_id)
         if red is None:
             raise NotFound(f"redemption {redemption_id}")
         self._parent_owns_child(p, red.child_id)
         red.state = RedemptionState.DECLINED  # gentle, no penalty (§6)
         red.resolved_at = _now()
+        self.repo.save_redemption(red)
         return red
 
     def _write_redeem(self, child_id: str, reward: Reward) -> None:
@@ -630,23 +756,26 @@ class QuestGrowService:
     # ------------------------------------------------------------------ #
     # read models / projections (§7) — never authoritative               #
     # ------------------------------------------------------------------ #
+    def resolve_complexity_profile(self, child: Child) -> ComplexityProfile:
+        """§13: age band + per-dimension parent overrides → rendering config.
+        Carries no ownership_stage / level (INV-8 — structural)."""
+        return resolve_complexity_profile(child.age_band, child.adaptation_overrides)
+
     def today(self, child_scope, *, child_id: str, day: date) -> TodayPayload:
         self._require_child(child_scope, child_id)
         return self._today_payload(child_id, day)
 
     def _today_payload(self, child_id: str, day: date) -> TodayPayload:
         items: list[TodayItem] = []
-        for (c_id, quest_id), cq in self.repo.child_quests.items():
-            if c_id != child_id:
-                continue
+        for cq in self.repo.child_quests_of(child_id):
+            quest_id = cq.quest_id
             latest = self.repo.latest_quest(quest_id)
             if latest is None:
                 continue
-            key = (quest_id, latest.id.version, child_id, day.isoformat())
-            rec = self.repo.instances.get(key)
-            if rec is None or rec.instance.state is InstanceState.EXPIRED:
+            inst = self.repo.get_instance_any_version(quest_id, child_id, day)
+            if inst is None or inst.state is InstanceState.EXPIRED:
                 continue
-            st = rec.instance.state
+            st = inst.state
             child_visible = "available" if st is InstanceState.NOT_YET else st.value
             behaviour = verification_behaviour(cq.ownership_stage)
             items.append(
@@ -660,12 +789,15 @@ class QuestGrowService:
                 )
             )
         ledger = self.repo.ledger_for(child_id)
+        child = self.repo.get_child(child_id)
+        profile = self.resolve_complexity_profile(child) if child is not None else None
         return TodayPayload(
             child_id=child_id,
             on_date=day.isoformat(),
             items=tuple(items),
             lifetime_achievement=lifetime_achievement(ledger),
             spendable_balance=spendable_balance(ledger),
+            complexity_profile=profile,
         )
 
     def lifetime_achievement(self, *, child_id: str) -> int:
@@ -676,20 +808,43 @@ class QuestGrowService:
 
     def weekly_consistency(self, *, child_id: str, week_start: date) -> WeeklyConsistency:
         active = set()
-        for rec in self.repo.instances.values():
-            inst = rec.instance
-            if inst.child_id != child_id or inst.state is not InstanceState.VERIFIED:
+        for inst in self.repo.instances_of(child_id):
+            if inst.state is not InstanceState.VERIFIED:
                 continue
             delta = (inst.on_date - week_start).days
             if 0 <= delta < 7:
                 active.add(inst.on_date)
         return WeeklyConsistency(child_id, week_start.isoformat(), len(active))
 
+    def daily_progress(self, parent, *, child_id: str, day: date) -> DailyProgress:
+        """Parent-facing daily roll-up — plain instance-state counts for
+        ``day`` (no ownership aggregate, no streak — INV-9/INV-16)."""
+        p = self._require_parent(parent)
+        self._parent_owns_child(p, child_id)
+        counts = {s: 0 for s in ("verified", "pending", "available", "expired")}
+        total = 0
+        for inst in self.repo.instances_of(child_id):
+            if inst.on_date != day:
+                continue
+            total += 1
+            st = "available" if inst.state is InstanceState.NOT_YET else inst.state.value
+            if st in counts:
+                counts[st] += 1
+        return DailyProgress(
+            child_id=child_id,
+            on_date=day.isoformat(),
+            total=total,
+            verified=counts["verified"],
+            pending=counts["pending"],
+            available=counts["available"],
+            expired=counts["expired"],
+        )
+
     def approvals_queue(self, parent, *, child_id: str) -> list[QuestInstance]:
         p = self._require_parent(parent)
         self._parent_owns_child(p, child_id)
         return [
-            rec.instance
-            for rec in self.repo.instances.values()
-            if rec.instance.child_id == child_id and rec.instance.state is InstanceState.PENDING
+            inst
+            for inst in self.repo.instances_of(child_id)
+            if inst.state is InstanceState.PENDING
         ]

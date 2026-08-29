@@ -101,7 +101,7 @@ def test_inv5_child_and_server_cannot_write_ownership_stage(world):
 def test_inv6_every_stage_change_has_a_parent_audit_entry_and_sweep_never_changes_stage(world, parent):
     world.set_ownership_stage(parent, child_id="mia", quest_id="teeth", target=OwnershipStage.CHILD_PARTICIPATED)
     world.set_ownership_stage(parent, child_id="mia", quest_id="teeth", target=OwnershipStage.PARENT_GUIDED)
-    stage_audits = [a for a in world.repo.audit_log if a.action.startswith("ownership_")]
+    stage_audits = [a for a in world.repo.audit_entries() if a.action.startswith("ownership_")]
     assert len(stage_audits) == 2
     assert all(a.actor.startswith("parent:") for a in stage_audits)
     # the scheduled sweep must not change ownership_stage

@@ -222,7 +222,7 @@ def test_ac13_parent_skips_stages_in_one_action_naming_bypassed(world, parent):
     cq = world.repo.get_child_quest("mia", "teeth")
     assert cq.ownership_stage is OwnershipStage.CHILD_OWNED
     assert cq.consecutive_ok_count == 0
-    last_audit = world.repo.audit_log[-1]
+    last_audit = world.repo.audit_entries()[-1]
     assert last_audit.actor == "parent:acct-1"
     assert last_audit.action == "ownership_advance"
     assert last_audit.after == "CHILD_OWNED"
@@ -272,17 +272,13 @@ def test_il1_pending_grace_window(world, child, parent):
 
 
 # --- IL-5 (issue backlog → C1): quest-version instance lookup regression -----
-@pytest.mark.xfail(
-    reason="IL-5 — _get_instance / materialise_day key on latest quest version; fix lands in C1",
-    strict=True,
-)
 def test_il5_quest_edit_midday_keeps_instance_addressable_and_no_duplicate(world, child, parent):
     """create quest → materialise today's instance → edit quest (new version)
     → the pre-edit instance must stay completable, and re-materialising the
     day must NOT create a duplicate same-day instance. QUEST_MODEL: instances
     keep the version they were created under."""
     world.materialise_day(DAY)
-    n_before = len(world.repo.instances)
+    n_before = len(world.repo.all_instances())
 
     world.edit_quest(parent, quest_id="teeth", title="Brush teeth well")   # -> version 2
 
@@ -290,7 +286,7 @@ def test_il5_quest_edit_midday_keeps_instance_addressable_and_no_duplicate(world
     assert inst.state is InstanceState.PENDING                              # still addressable
 
     world.materialise_day(DAY)                                             # must be a no-op for this (child, quest, day)
-    assert len(world.repo.instances) == n_before                           # no duplicate at v2
+    assert len(world.repo.all_instances()) == n_before                     # no duplicate at v2
 
 
 # --- AC-15

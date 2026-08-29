@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from .adaptation import ComplexityProfile
 from .entities import LedgerEntry
 from .enums import LedgerKind
 
@@ -55,7 +56,23 @@ class TodayPayload:
     items: tuple[TodayItem, ...]
     lifetime_achievement: int
     spendable_balance: int
+    complexity_profile: ComplexityProfile | None = None  # §13 rendering config — no stage/level (INV-8)
     # deliberately: no ownership %, no "N of M owned", no independence score (INV-9)
+
+
+@dataclass(frozen=True)
+class DailyProgress:
+    """Parent-facing daily roll-up for one child. Plain counts of instance
+    states for ``on_date`` — no ownership aggregate, no streak (INV-9/INV-16).
+    """
+
+    child_id: str
+    on_date: str
+    total: int
+    verified: int
+    pending: int
+    available: int
+    expired: int
 
 
 @dataclass(frozen=True)
