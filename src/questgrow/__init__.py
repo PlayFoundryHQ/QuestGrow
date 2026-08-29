@@ -3,7 +3,9 @@
 Implemented strictly against ``docs/architecture/TECHNICAL_MODEL.md`` (the
 contract), which is itself bound to ``DECISION_LOG.md`` (DECISION-001…019) and
 ``OWNERSHIP_MODEL.md``. See ``docs/architecture/IMPLEMENTATION_NOTES.md`` for
-the code → §/INV/AC map and the one implementation-level ambiguity (IL-1).
+the code → §/INV/AC map and the implementation-level notes (IL-1 resolved via
+issue #18; IL-2 scheduling anchor; known defects tracked for the persistence
+phase).
 """
 
 from __future__ import annotations

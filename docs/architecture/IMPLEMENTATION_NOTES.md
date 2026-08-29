@@ -59,29 +59,34 @@ the contract" — DECISION-019) but nothing assigns it by default in MVP.
 
 ## Implementation-level ambiguities (IL) — not product decisions
 
-### IL-1 — lifetime of a `pending` instance at end of day
+### IL-1 — lifetime of a `pending` instance at end of day — **RESOLVED (#18)**
 
-`PARENT_CHILD_MODEL` "Completion states" says *"an available **or pending**
-quest not completed by end of day … → expired"*, and `TECHNICAL_MODEL §4`'s
-table lists `available / pending → expired`. But `VERIFICATION` says approval
-*"triggers the child's celebration … otherwise **next time the child opens the
-app**"* — implying a `pending` completion survives past the day it was marked.
-These conflict on whether a child-marked-but-not-yet-approved completion
-silently disappears at midnight.
+`PARENT_CHILD_MODEL` "Completion states" said *"an available **or pending**
+quest not completed by end of day … → expired"* and `TECHNICAL_MODEL §4`'s
+table listed `available / pending → expired`, while `VERIFICATION` implies a
+`pending` completion survives past the day it was marked ("…next time the
+child opens the app").
 
-**Chosen implementation:** `end_of_day` sweeps **`available`** instances to
-`expired`; **`pending`** instances persist until the parent resolves them
-(approve / `not_yet`). A `pending_ttl_days` constructor parameter (default
-`None` = no expiry) is provided so a later contract clarification can tighten
-this without a redesign.
+**Resolution (contract updated — `TECHNICAL_MODEL §4`, `PARENT_CHILD_MODEL`
+"Completion states"):**
 
-**Rationale:** expiring a `pending` completion the child already did their part
-on is a silent negative outcome, contradicting "no negative signal" and
-`VERIFICATION`'s wording. This choice does not reopen a product decision.
+- `available` instances expire the night they were due.
+- `pending` instances are **not** swept the same day. A `pending` instance
+  expires on the first end-of-day sweep that is `>= pending_grace_days` days
+  past its occurrence date — **default 1** (survives the occurrence day, then
+  expires the following day if the parent has not acted). It expires
+  **silently**: the quest rolls over per schedule, the child sees no negative
+  signal, and the counter is unaffected (`expired` is neutral, DECISION-018).
+- `pending_grace_days` is a tunable operational default (like the advancement
+  threshold), not a domain invariant. `None` disables `pending` expiry.
 
-**Recommended follow-up:** a contract clarification pass on `TECHNICAL_MODEL §4`
-and `PARENT_CHILD_MODEL` "Completion states" to state the `pending` lifetime
-explicitly.
+**Implementation:** `QuestGrowService(pending_grace_days=1)` (was
+`pending_ttl_days=None`); `end_of_day` sweeps both `available` (immediately)
+and stale `pending` (past the grace window). Test:
+`test_il1_pending_grace_window` in `tests/test_acceptance.py`.
+
+This resolution introduces **no product decision** — it clarifies a
+cross-document contradiction and does not touch DECISION-001…019 or OQ-A…OQ-H.
 
 ### IL-2 — "weekly" recurrence anchor
 
@@ -90,9 +95,35 @@ Implemented as "once per ISO week on an anchor weekday", where the anchor is
 the single weekday in `weekdays` if given, else the schedule `start` weekday,
 else Monday. Purely a scheduling mechanic; no product weight.
 
+## Known defects (surfaced by the Phase B backlog audit — fix in the persistence phase)
+
+### IL-5 — quest-version instance lookup
+
+`_get_instance` and `materialise_day` key `QuestInstance` lookups on
+`latest_quest().version`. `edit_quest` creates a new version; existing
+instances correctly keep their creation version (`QUEST_MODEL`), but after an
+edit **the same day**: (a) `submit_completion` / `approve` for a pre-edit
+instance raise `NotFound`, and (b) re-running `materialise_day` creates a
+**second** instance for the same `(quest, child, date)` at the new version.
+
+Fix (small): resolve/complete instances by `(quest_id, child_id, date)` across
+all versions; guard `materialise_day` against a same-day duplicate at any
+version.
+
+**Regression test (present now):**
+`test_il5_quest_edit_midday_keeps_instance_addressable_and_no_duplicate` in
+`tests/test_acceptance.py`, marked `xfail(strict=True)` — it encodes the bug
+today and will flip to a hard failure (forcing removal of the marker) when C1
+lands the fix.
+
+Contract-consistent (`QUEST_MODEL` versioning is correct); this is an
+implementation defect, not contract drift. The fix is folded into the
+persistence issue (C1).
+
 ## Test coverage
 
-`tests/test_acceptance.py` — AC-1 … AC-15, one test each.
+`tests/test_acceptance.py` — AC-1 … AC-15 + `test_il1_pending_grace_window`
+(issue #18).
 `tests/test_invariants.py` — INV-1 … INV-18, one test each (structural scans
 for INV-1/4/8/9; behavioural for the rest).
 

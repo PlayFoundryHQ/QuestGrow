@@ -251,11 +251,17 @@ Model-level:
 - Exact wording and placement of the (rare) child-facing regression message,
   pending UX writing and testing with real families.
 
-Product-thesis-level (surfaced by the skeptical validation passes; **none are
-resolved** — recorded here so they are not silently decided elsewhere):
+Product-thesis-level (surfaced by the skeptical validation passes; recorded
+here so they are not silently decided elsewhere):
 
 - **OQ-A** — Is the ~3–4 experience a complete product in its own right, or
   primarily an on-ramp where ownership is latent?
+  *MVP-scope aspect: decided — [DECISION-019](../governance/DECISION_LOG.md)
+  makes the MVP an on-ramp (MVP quests start at `PARENT_GUIDED`;
+  `PARENT_MANAGED` is domain-valid but not MVP-assignable; a dedicated
+  `PARENT_MANAGED` / ~3–4 experience is post-MVP). The long-term
+  product-identity aspect — whether ~3–4 becomes a complete product in its own
+  right — **remains open.***
 - **OQ-B** — At ~7–8, does the model evolve toward a broader
   responsibility-management model?
 - **OQ-C** — For `CHILD_OWNED` routines, should celebrations/rewards remain

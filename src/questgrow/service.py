@@ -81,12 +81,12 @@ class QuestGrowService:
         repo: InMemoryRepository | None = None,
         events: EventSink | None = None,
         advancement_threshold: int = DEFAULT_ADVANCEMENT_THRESHOLD,
-        pending_ttl_days: int | None = None,  # IL-1: None == pending never auto-expires
+        pending_grace_days: int | None = 1,  # IL-1 resolved: pending survives to date+N, then expires silently (None == never)
     ) -> None:
         self.repo = repo or InMemoryRepository()
         self.events = events or EventSink()
         self.advancement_threshold = advancement_threshold
-        self.pending_ttl_days = pending_ttl_days
+        self.pending_grace_days = pending_grace_days
         self._ids = itertools.count(1)
 
     def _id(self, prefix: str) -> str:
@@ -315,12 +315,17 @@ class QuestGrowService:
         """Scheduled sweep (server/system actor). Transitions instances to
         ``expired`` (§4). Never touches ``ownership_stage`` (INV-6).
 
-        IL-1: only ``available`` instances are swept here. ``pending``
-        instances (child already marked done, parent not yet acted) persist —
-        expiring them would be a silent negative outcome for the child,
-        contradicting VERIFICATION ("...next time the child opens the app")
-        and "no negative signal". A ``pending_ttl_days`` (default None) exists
-        so a later contract clarification can tighten this without a redesign.
+        IL-1 (resolved — TECHNICAL_MODEL §4, PARENT_CHILD_MODEL):
+        * ``available`` instances expire the night they were due.
+        * ``pending`` instances are **not** swept the same day (the child must
+          be able to see "waiting for grown-up" on their next session, per
+          VERIFICATION). A ``pending`` instance expires on the first
+          end-of-day sweep that is >= ``pending_grace_days`` days past its
+          occurrence date (default 1: survives the occurrence day, then
+          expires the following day if still unresolved). It expires
+          **silently**: rolls over per schedule, no child signal, no counter
+          effect (``expired`` is neutral, DECISION-018).
+        ``pending_grace_days = None`` disables pending expiry entirely.
         """
         expired: list[QuestInstance] = []
         for rec in self.repo.instances.values():
@@ -332,8 +337,8 @@ class QuestGrowService:
                 expired.append(inst)
             elif (
                 inst.state is InstanceState.PENDING
-                and self.pending_ttl_days is not None
-                and (day - inst.on_date).days >= self.pending_ttl_days
+                and self.pending_grace_days is not None
+                and (day - inst.on_date).days >= self.pending_grace_days
             ):
                 inst.state = InstanceState.EXPIRED
                 expired.append(inst)

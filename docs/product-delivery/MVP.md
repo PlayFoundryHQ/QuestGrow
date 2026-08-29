@@ -92,12 +92,16 @@ Define rewards: name, icon, point cost, redemption mode (self-service or
 parent-confirmed). Edit reward mapping.
 
 ### 11. Data model supports age adaptation
-Child profile carries age band + per-dimension overrides → a derived
-complexity level available to every child-facing component. Components render
-as age variants. Adaptation dimensions: vocabulary, text amount, iconography,
-interaction complexity, task complexity, reading requirement, reward
-presentation, independence level (expressed as the default ownership stage
-per quest — [OWNERSHIP_MODEL §10](../experience/OWNERSHIP_MODEL.md)).
+Child profile carries age band + per-dimension overrides. The server resolves
+these to a **`complexityProfile`** — the age-adaptation *rendering* values
+(vocabulary, text amount, iconography, interaction complexity, task
+complexity, reading requirement, reward presentation) — delivered with the
+child's daily payload; the client renders component variants from it.
+The `complexityProfile` **never** carries `ownership_stage`, a stage label, or
+an "independence level" (INV-8): independence is expressed as the per-quest
+`ownership_stage`, which age only sets a *default* for
+([OWNERSHIP_MODEL §10](../experience/OWNERSHIP_MODEL.md),
+[TECHNICAL_MODEL §7](../architecture/TECHNICAL_MODEL.md)).
 
 ### 12. Data model supports ownership stage
 The **(child, quest)** relationship carries `ownership_stage` ∈

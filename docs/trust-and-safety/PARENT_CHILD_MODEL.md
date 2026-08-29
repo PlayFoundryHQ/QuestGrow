@@ -92,8 +92,17 @@ request) but can never *commit* a meaningful state change.
 - **not-yet** — parent declined *this instance*. Quest returns to available.
   This is not a failure state, carries no penalty, and is not shown to the
   child as negative. Optional parent note ("let's try together").
-- **expired / rollover** — an available or pending quest not completed by end
-  of day rolls over per its schedule with no negative signal.
+- **expired / rollover** — no negative signal, ever; the quest rolls over to
+  its next scheduled instance.
+  - An **available** quest not completed by end of day expires that night.
+  - A **pending** quest (child marked it, parent has not acted) is **not**
+    swept the same day — the child must be able to see its "waiting for
+    grown-up" state on their next session
+    ([VERIFICATION](./VERIFICATION.md)). It persists until the parent resolves
+    it, or until the **pending grace window** elapses (default: one day past
+    the occurrence date — a tunable operational default), after which it
+    expires silently. See
+    [TECHNICAL_MODEL §4](../architecture/TECHNICAL_MODEL.md).
 
 ## Which quests require verification?
 

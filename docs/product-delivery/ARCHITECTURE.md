@@ -140,11 +140,11 @@ section only records how responsibility is decomposed.
 
 ### Age-adaptation resolver
 - Input: child birthdate/explicit band + per-dimension overrides.
-- Output: a `complexityProfile` (band + resolved values for vocabulary, text
-  amount, iconography, interaction complexity, task complexity, reading
-  requirement, reward presentation). Delivered with the "today" payload;
-  client selects component variants from it. No age logic branches scattered
-  in the client.
+- Output: a `complexityProfile` — the field list, per-band resolved values,
+  and override rules are the contract in
+  [`TECHNICAL_MODEL §13`](../architecture/TECHNICAL_MODEL.md). Delivered with
+  the "today" payload; the client selects component variants from it, with no
+  age logic scattered in the client.
 - Age band also sets the **default** `ownership_stage` for a newly assigned
   quest — a server-side derivation stored on the `ChildQuest`, never part of
   the client-facing `complexityProfile` (INV-8; `TECHNICAL_MODEL §10` /

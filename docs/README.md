@@ -31,13 +31,24 @@ docs/
 │   ├── PARENT_CHILD_MODEL.md   Roles, trust boundary, completion state machine, anti-self-scoring
 │   └── VERIFICATION.md         Verification as part of the game loop; enforcement; evidence
 │
-└── product-delivery/       WHAT gets built, and when
-    ├── MVP.md                  The MVP capabilities, cross-cutting requirements, acceptance
-    ├── ROADMAP.md              Post-MVP layers and how items enter the roadmap
-    └── ARCHITECTURE.md         Services, data model, invariants, privacy posture
+├── product-delivery/       WHAT gets built, and when
+│   ├── MVP.md                  The MVP capabilities, cross-cutting requirements, acceptance
+│   ├── ROADMAP.md              Post-MVP layers and how items enter the roadmap
+│   └── ARCHITECTURE.md         How the system is organised and built (construction)
+│
+├── architecture/           THE CONTRACT an implementation must obey
+│   ├── TECHNICAL_MODEL.md      Domain concepts, state machines, authority matrix, INV-1…18, AC-1…15, TOQ dispositions
+│   └── IMPLEMENTATION_NOTES.md Code → contract map; implementation-level notes (IL-*)
+│
+└── governance/             FROZEN DECISIONS
+    └── DECISION_LOG.md         DECISION-001 … DECISION-019 + reserved
 ```
 
-## The three layers, in one sentence each
+**Implementation.** `src/questgrow/` is the MVP domain, written strictly
+against `architecture/TECHNICAL_MODEL.md`; `tests/` holds the AC-1…15 and
+INV-1…18 suites. See `architecture/IMPLEMENTATION_NOTES.md`.
+
+## The layers, in one sentence each
 
 1. **Product foundation** defines *why* QuestGrow exists and the non-negotiable
    rules every decision is judged against.
@@ -46,8 +57,12 @@ docs/
    [Ownership Model](./experience/OWNERSHIP_MODEL.md) — the arc from
    parent-managed to child-owned routines — is the spine most of these
    documents hang from.
-3. **Product delivery** defines *what* the first version builds and what comes
-   next.
+3. **Product delivery** defines *what* the first version builds and when.
+4. **Architecture** (`architecture/`) is the contract an implementation must
+   obey — domain, state machines, invariants, acceptance criteria — sitting
+   between the ownership model and `product-delivery/ARCHITECTURE.md`.
+5. **Governance** (`governance/DECISION_LOG.md`) is the frozen record of
+   durable decisions (DECISION-001 … DECISION-019).
 
 ## Governing rule
 

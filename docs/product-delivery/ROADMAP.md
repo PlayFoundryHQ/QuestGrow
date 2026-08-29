@@ -9,8 +9,23 @@ before design begins.
 
 Smallest system that demonstrates the QuestGrow philosophy: parent sets up a
 child and quests, child does them in the real world and marks them,
-verification gates meaningful state, daily + weekly progress, points-only
-ledger, age adaptation in the data model. Mobile, single family, one language.
+verification (derived from the per-quest `ownership_stage`) gates meaningful
+state, daily + weekly progress, an append-only ledger with the
+**Lifetime Achievement / Spendable Balance** split, age adaptation in the data
+model. Mobile, single family, one language.
+
+**On-ramp scope ([DECISION-019](../governance/DECISION_LOG.md)).** The MVP is
+an on-ramp: every MVP quest starts at `PARENT_GUIDED`; `PARENT_MANAGED`
+remains a valid contract stage but is not assignable or rendered in the MVP
+UI; a dedicated `PARENT_MANAGED` / ~3–4 experience is post-MVP.
+
+**Progress.** The domain layer is implemented and contract-tested
+([TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md) §2–§9 — AC-1…15,
+INV-1…18; `src/questgrow/`). The **remaining Layer 0 work**: persistence,
+HTTP API, auth + parent gate, notification transport, the `complexityProfile`
+rendering contract + client consumption, the child client, the parent client
+— then the end-to-end acceptance run. Sequenced under the `MVP Implementation`
+milestone.
 
 **Exit criteria:** the end-to-end acceptance checklist in
 [MVP.md](./MVP.md#mvp-acceptance-the-loop-works-end-to-end) passes with a real
@@ -81,10 +96,24 @@ and [Core Principles F](../product-foundation/CORE_PRINCIPLES.md):
 
 ## How items enter the roadmap
 
-1. Proposed with a one-line statement of the real-world development it serves
-   (Core Principle #24).
-2. Run through the [decision rule](../product-foundation/CORE_PRINCIPLES.md#decision-rule).
-3. If it conflicts with a core principle, the conflict and rationale are
-   documented and consciously accepted — or the item is rejected with the
-   principle numbers cited.
-4. Tracked as a GitHub issue referencing the relevant foundation docs.
+The governance flow that actually emerged during the foundation and
+technical-model phases:
+
+1. A capability or question is proposed with a one-line statement of the
+   real-world development it serves (Core Principle #24).
+2. It is run through the
+   [decision rule](../product-foundation/CORE_PRINCIPLES.md#decision-rule).
+3. If it settles a **durable product/behavioural/architectural** point, it is
+   recorded in [`DECISION_LOG.md`](../governance/DECISION_LOG.md) as the next
+   `DECISION-0xx` (via the Decision Panel review used for
+   [DECISION-017…019](../governance/DECISION_LOG.md)); a conflict with a core
+   principle is documented and consciously accepted, or the item is rejected
+   citing principle numbers.
+4. If it is a **technical realization** question, it is dispositioned as a
+   TOQ in [`TECHNICAL_MODEL §10`](../architecture/TECHNICAL_MODEL.md), or an
+   implementation-level ambiguity (IL-\*) in
+   [`IMPLEMENTATION_NOTES.md`](../architecture/IMPLEMENTATION_NOTES.md).
+5. The remaining work is tracked as a GitHub issue under the appropriate
+   milestone, referencing the decision / TOQ / foundation doc it derives from.
+   Issues are audited against repository state before a phase begins, not
+   treated as permanent backlog.

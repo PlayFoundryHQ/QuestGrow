@@ -148,7 +148,8 @@ This function is **evaluated, never persisted** as an independent field
     verified                  pending                      verified
                                  │  parent: approve ──────────►
                                  │  parent: not_yet ─────► available (+ optional gentle note)
-   (end of day, still available or pending) ─────────────► expired  (no penalty; rolls over per schedule)
+   available, not completed by end of day ───────────────► expired  (no penalty; rolls over per schedule)
+   pending, unresolved past the grace window ────────────► expired  (silent; rolls over; no child signal)
 ```
 
 | From | To | Trigger | Actor |
@@ -158,7 +159,20 @@ This function is **evaluated, never persisted** as an independent field
 | `available` | `verified` | parent records (stage = `PARENT_MANAGED`) | parent scope → server |
 | `pending` | `verified` | parent `approve` | parent scope → server |
 | `pending` | `available` | parent `not_yet` (declines **this instance only**; no penalty) | parent scope → server |
-| `available` / `pending` | `expired` | end of day, not completed | server (scheduled) |
+| `available` | `expired` | end of day, not completed | server (scheduled) |
+| `pending` | `expired` | not resolved by the parent within the **pending grace window** — default **1 day** past the occurrence date (a tunable operational default, **not** a domain invariant) | server (scheduled) |
+
+**Pending lifetime (resolves IL-1).** A `pending` instance is **not** swept on
+the same day it was marked — the child must be able to see its "waiting for
+grown-up" state on their next session
+([VERIFICATION](../trust-and-safety/VERIFICATION.md)). It persists until the
+parent resolves it (`approve` / `not_yet`) or until the **pending grace
+window** elapses (default: occurrence date + 1 day), after which it expires
+**silently**: the quest rolls over to its next scheduled instance, the child
+sees no negative signal (MANIFESTO — "missing a quest is a neutral
+non-event"), and the counter is unaffected (`expired` is neutral —
+[DECISION-018](../governance/DECISION_LOG.md)). The grace window is
+configurable, like the advancement threshold.
 
 The child never writes `QuestInstance.state` directly; the child only creates
 a `CompletionRequest` (intent). The server sets the resulting state
@@ -463,3 +477,55 @@ remain open. This document introduces no product decision — it records the
 three approved outcomes ([DECISION-017](../governance/DECISION_LOG.md),
 [DECISION-018](../governance/DECISION_LOG.md),
 [DECISION-019](../governance/DECISION_LOG.md)) and six technical dispositions.
+
+## 13. Age-adaptation profile (`complexityProfile`)
+
+*(Contract for issue #10 — the value contract; client consumption is a
+separate implementation task.)*
+
+The server resolves a child's **age band** + per-dimension **parent
+overrides** into a `complexityProfile` — a projection (§7) delivered with the
+child's "today" payload. It carries **rendering values only**. It **never**
+carries `ownership_stage`, a stage label, a level, or an "independence value"
+(INV-8; independence is the per-quest `ownership_stage`, which the band only
+sets a *default* for — §3, TOQ-9).
+
+### Fields and per-band resolved values
+
+Bands are guidance, not hard gates ([UX_PRINCIPLES → age adaptation](../experience/UX_PRINCIPLES.md)).
+
+| Field | Type | ~3–4 | ~5–6 | ~7–8 |
+|---|---|---|---|---|
+| `text_style` | enum `{icon_only, short_label, short_sentence}` | `icon_only` | `short_label` | `short_sentence` |
+| `audio_narration` | enum `{always, on_tap, on_tap}` | `always` | `on_tap` | `on_tap` |
+| `iconography` | enum `{large_simple, standard, standard}` | `large_simple` | `standard` | `standard` |
+| `quests_shown_at_once` | int range | `1–3` | `3–5` | `5–7` |
+| `interaction` | enum `{single_tap, tap_drag, tap_drag_order}` | `single_tap` | `tap_drag` | `tap_drag_order` |
+| `task_complexity` | enum `{single_step, small_multi_step, multi_step_sequence}` | `single_step` | `small_multi_step` | `multi_step_sequence` |
+| `reading_requirement` | enum `{none, minimal, light}` | `none` | `minimal` | `light` |
+| `reward_presentation` | enum `{big_animation, animation_progress, progress_collectibles}` | `big_animation` | `animation_progress` | `progress_collectibles` |
+
+### Rules
+
+- **Resolution.** `complexityProfile[dim] = parent_override[dim] if present
+  else band_default(band)[dim]`. Every field always has a resolved value.
+- **Overrides** are per-dimension and per-child (`Child.adaptation_overrides`);
+  a parent may pin any single dimension without affecting the others.
+- **Band boundaries** are approximate; `age_band` may be derived from
+  birthdate or set explicitly (ARCHITECTURE privacy: a coarse band is
+  sufficient).
+- The profile is **recomputed**, never stored (§7). Changing the band or an
+  override changes every subsequent payload.
+- **INV-8 boundary:** a contract test asserts no child-scope response — the
+  `complexityProfile` included — contains `ownership_stage` or any stage /
+  level / readiness field.
+- `quests_shown_at_once` is a soft layout hint; it does not cap the number of
+  scheduled quests, only how many the child surface presents at once.
+
+### Not in this contract
+
+The exact visual/interaction design of each variant, and the client rendering
+that consumes the profile, are the client track (#10 client-consumption half /
+child-client issue). Post-MVP: smoother band transitions as a child grows, and
+a parent-facing overrides UI ([ROADMAP](../product-delivery/ROADMAP.md)
+Layer 2).

@@ -241,11 +241,13 @@ take real responsibility for everyday routines without the parent giving up
 judgment. The goal is not parental withdrawal — it is child agency without
 surrendering parental judgment.
 
-The following product questions are **open and deliberately unresolved.** This
-document makes no claim that depends on their answers:
+The following product questions are **open and deliberately unresolved** (one
+in part — OQ-A). This document makes no claim that depends on their answers:
 
 - **OQ-A** — Is the ~3–4 experience a complete product, or primarily an
   on-ramp where ownership is latent?
+  *MVP-scope aspect decided by [DECISION-019](../governance/DECISION_LOG.md):
+  the MVP is an on-ramp. The long-term product-identity aspect remains open.*
 - **OQ-B** — Does the ~7–8 experience evolve toward broader
   responsibility-management?
 - **OQ-C** — Should celebrations / rewards wind down for `CHILD_OWNED`

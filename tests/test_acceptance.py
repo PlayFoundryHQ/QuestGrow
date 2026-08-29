@@ -238,6 +238,61 @@ def test_ac14_expired_occurrence_is_neutral_for_counter(world, child, parent):
     assert world.repo.get_child_quest("mia", "teeth").consecutive_ok_count == 5
 
 
+# --- IL-1 (issue #18): pending grace window --------------------------------
+def test_il1_pending_grace_window(world, child, parent):
+    """A PARENT_GUIDED completion the child marked is NOT swept the same day;
+    it expires silently one day past the occurrence date if the parent has not
+    acted; and a mid-window parent approval still works and fires the
+    celebration. TECHNICAL_MODEL §4 / PARENT_CHILD_MODEL."""
+    cq = world.repo.get_child_quest("mia", "teeth")
+    cq.consecutive_ok_count = 4
+
+    world.materialise_day(DAY)
+    world.submit_completion(child, child_id="mia", quest_id="teeth", day=DAY)  # -> pending
+    world.end_of_day(DAY)                            # same day: pending survives
+    assert world._get_instance("teeth", "mia", DAY).state is InstanceState.PENDING
+    assert world.events.celebrations_for("mia") == []          # no negative or positive signal yet
+
+    # parent can still approve within the grace window
+    world.approve(parent, child_id="mia", quest_id="teeth", day=DAY)
+    assert world._get_instance("teeth", "mia", DAY).state is InstanceState.VERIFIED
+    assert len(world.events.celebrations_for("mia")) == 1
+    assert world.repo.get_child_quest("mia", "teeth").consecutive_ok_count == 5
+
+    # a DIFFERENT pending instance left unresolved expires silently at D+1
+    d2 = DAY + timedelta(days=1)
+    world.materialise_day(d2)
+    world.submit_completion(child, child_id="mia", quest_id="teeth", day=d2)   # -> pending
+    world.end_of_day(d2)                             # same day: survives
+    assert world._get_instance("teeth", "mia", d2).state is InstanceState.PENDING
+    world.end_of_day(d2 + timedelta(days=1))         # one day past: silent expiry
+    assert world._get_instance("teeth", "mia", d2).state is InstanceState.EXPIRED
+    assert len(world.events.celebrations_for("mia")) == 1      # no new signal from expiry
+    assert world.repo.get_child_quest("mia", "teeth").consecutive_ok_count == 5  # expired is neutral
+
+
+# --- IL-5 (issue backlog → C1): quest-version instance lookup regression -----
+@pytest.mark.xfail(
+    reason="IL-5 — _get_instance / materialise_day key on latest quest version; fix lands in C1",
+    strict=True,
+)
+def test_il5_quest_edit_midday_keeps_instance_addressable_and_no_duplicate(world, child, parent):
+    """create quest → materialise today's instance → edit quest (new version)
+    → the pre-edit instance must stay completable, and re-materialising the
+    day must NOT create a duplicate same-day instance. QUEST_MODEL: instances
+    keep the version they were created under."""
+    world.materialise_day(DAY)
+    n_before = len(world.repo.instances)
+
+    world.edit_quest(parent, quest_id="teeth", title="Brush teeth well")   # -> version 2
+
+    inst = world.submit_completion(child, child_id="mia", quest_id="teeth", day=DAY)
+    assert inst.state is InstanceState.PENDING                              # still addressable
+
+    world.materialise_day(DAY)                                             # must be a no-op for this (child, quest, day)
+    assert len(world.repo.instances) == n_before                           # no duplicate at v2
+
+
 # --- AC-15
 def test_ac15_any_stage_transition_resets_counter(world, parent):
     cq = world.repo.get_child_quest("mia", "teeth")
