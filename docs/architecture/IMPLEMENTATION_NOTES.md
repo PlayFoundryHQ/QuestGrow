@@ -16,9 +16,14 @@ top — `adaptation.py` (the §13 `complexityProfile` resolver) and
 `sqlite_repository.py` (a `sqlite3`-backed `Repository`, Postgres-portable
 schema). `repository.Repository` is a `Protocol`; `InMemoryRepository` and
 `SqliteRepository` are drop-in and the full AC/INV suite runs against both.
-**Not yet** implemented (later C-phases): the HTTP/REST API (C2), auth tokens /
-parent-gate (C3), notification transport (C4), the reference web clients
-(C5/C6), and any long-term meta-game. `PARENT_MANAGED` **is** implemented and
+C2 adds `api.py` — a FastAPI transport over `QuestGrowService` with bearer
+token → scope resolution (`TokenStore`), the §5 actor matrix mirrored at the
+HTTP boundary (403 before the service is reached), and child response models
+that structurally carry no stage/level field (INV-8, asserted against the
+generated OpenAPI). **Not yet** implemented (later C-phases): real auth
+tokens / PIN parent-gate (C3 — `TokenStore` issuance is a placeholder),
+notification transport (C4), the reference web clients (C5/C6), and any
+long-term meta-game. `PARENT_MANAGED` **is** implemented and
 tested (it "remains a valid part of the contract" — DECISION-019) but nothing
 assigns it by default in MVP.
 
@@ -37,6 +42,7 @@ assigns it by default in MVP.
 | `projections.py` (`lifetime_achievement`, `spendable_balance`, `TodayPayload`, `WeeklyConsistency`, `DailyProgress`) | §7 | INV-8, INV-9, INV-13, INV-16 | AC-8, AC-9 |
 | `adaptation.py` (`ComplexityProfile`, `resolve_complexity_profile`) | §13 | INV-8 (no stage/level field — structural) | — |
 | `repository.py` (`Repository` protocol) + `sqlite_repository.py` (`SqliteRepository`, `SCHEMA`) | §10 / TOQ-7; append-only ledger | INV-1, INV-11, INV-12 | AC-2, AC-12 |
+| `api.py` (`create_app`, `TokenStore`, wire models) | §5 actor matrix at the HTTP boundary; §13 payload | INV-5, INV-8, INV-17, INV-18 | AC-1, AC-2, AC-5, AC-8, AC-9, AC-11, AC-13 |
 | `events.py` (`EventSink`, `CelebrationEvent`) | §4 `completion.verified`; ARCHITECTURE notification service | INV-8 (no stage label in event) | AC-1, AC-2, AC-10 |
 | `service.py` ownership stage service (`set_ownership_stage`, `advancement_suggestions`, `accept/dismiss`) | §3, §5; DECISION-008/017 | INV-5, INV-6 | AC-3, AC-4, AC-13, AC-15 |
 | `service.py` `materialise_day` / `end_of_day` | §4 `→ expired`; TOQ-7 | INV-6 (sweep never touches stage), INV-16 | AC-14 |
@@ -130,6 +136,9 @@ for INV-1/4/8/9; behavioural for the rest).
 `tests/test_c1_persistence.py` — `InMemory`/`Sqlite` parity flow, `edit_reward`,
 `set_child_profile`, `daily_progress`, `seed_starter_quests`, `complexityProfile`
 in `today()` + the INV-8 no-stage/level guard, and a schema no-drift scan.
+`tests/test_api.py` — AC-1/2/5/8/9/11/13 replayed over HTTP, 403/401 on
+forged/cross-scope requests, OpenAPI scanned for the INV-8 boundary
+(needs `httpx`; `pytest.importorskip`).
 
 Run: `python3 -m pytest -q` (from the repo root). The domain + C1 suite needs
 no third-party packages; later C-phases add `fastapi`/`httpx` (use a venv —
@@ -137,7 +146,8 @@ no third-party packages; later C-phases add `fastapi`/`httpx` (use a venv —
 
 ## Known implementation gaps (deferred — out of MVP-subsystem scope)
 
-- HTTP/API surface, auth tokens, parent-gate challenge (C2/C3).
+- Real auth tokens + PIN parent-gate challenge (C3 — `api.TokenStore` issuance
+  is a dev placeholder).
 - Notification delivery transport (only the event sink interface exists) (C4).
 - Reference web clients (C5/C6); production mobile client (post-readiness).
 - `PARENT_MANAGED` assignment UX (DECISION-019 — post-MVP).
