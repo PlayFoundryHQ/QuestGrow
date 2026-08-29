@@ -1,30 +1,39 @@
 # QuestGrow Architecture
 
-Foundational architecture for the MVP. This is a product-foundation document,
-not a final technical spec — it constrains engineering choices so they serve
-the [Manifesto](../product-foundation/MANIFESTO.md),
+**How the QuestGrow system is organised and built.** What the system must
+*guarantee* — the domain entities and their write-authority, the ownership
+state machine, the authority/actor matrix, verification derivation, reward
+semantics, and the invariants — is defined in
+[`TECHNICAL_MODEL.md`](../architecture/TECHNICAL_MODEL.md). Where this
+document previously stated contract-level rules, they now live there and are
+referenced from here.
+
+This document serves the [Manifesto](../product-foundation/MANIFESTO.md),
 [CORE_PRINCIPLES](../product-foundation/CORE_PRINCIPLES.md) (especially
-#13–#16), and the [Parent–Child Model](../trust-and-safety/PARENT_CHILD_MODEL.md).
+#13–#16), the [Parent–Child Model](../trust-and-safety/PARENT_CHILD_MODEL.md),
+and the [Technical Model](../architecture/TECHNICAL_MODEL.md).
 
 ## Guiding constraints
 
 1. **The trust boundary is architectural.** Anti-self-scoring and parent
-   authority are enforced by the server and the data model, never only by the
-   client UI.
+   authority are enforced by the server and the persistence layer, never only
+   by the client UI. The authority rules are the
+   [actor matrix](../architecture/TECHNICAL_MODEL.md) (`TECHNICAL_MODEL §5`).
 2. **Child side is thin.** The child surface is a small, mostly-presentational
-   client. Logic, scheduling, and validation live server-side.
-3. **State that matters is append-only and server-written.** Points, progress,
-   goal completion, and reward grants are ledger entries created by the
-   server in response to validated events.
+   client. Scheduling, validation, and every state transition live
+   server-side.
+3. **State that matters is append-only and server-written.** See
+   `TECHNICAL_MODEL §6–§7` (progress ledger, authoritative state vs
+   projections).
 4. **Offline-tolerant capture, authoritative resolution.** The child can
    capture a completion offline; the server is the sole authority on whether
-   it becomes verified and produces a ledger entry.
+   it becomes `verified` and produces a ledger entry (`TECHNICAL_MODEL §4`).
 5. **Age adaptation is data, resolved once.** A profile's age band + overrides
-   resolve to a complexity level that flows to the client as config.
+   resolve to a `complexityProfile` that flows to the client as config.
 6. **Verification is derived, not configured.** Whether a completion needs
-   parent approval is computed from the `(child, quest)` `ownership_stage`
-   ([OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md)) — there is no
-   independent `verification_required` flag to fall out of sync.
+   parent approval is a pure function of the `(child, quest)` `ownership_stage`
+   (`TECHNICAL_MODEL §4`, INV-4) — there is no stored verification flag to
+   fall out of sync.
 
 ## High-level shape
 
@@ -75,120 +84,98 @@ gate **and** reflected in the token scope issued to the client.
 
 ## API services
 
+Each service below is a **module boundary**. The rules it enforces are the
+contract in [`TECHNICAL_MODEL.md`](../architecture/TECHNICAL_MODEL.md); this
+section only records how responsibility is decomposed.
+
 ### Auth & authorization
 - One account = one parent identity (email/OAuth). Children are sub-resources.
 - Token scopes: `child:<childId>` (restricted) and `parent:<accountId>`
-  (full). Every state-changing endpoint checks for `parent` scope; the one
-  exception is a child `completion_request`, whose outcome is decided by the
-  server from the `(child, quest)` `ownership_stage` (which only parent scope
-  can write).
+  (full). The authority rules — including the single child-intent exception —
+  are `TECHNICAL_MODEL §5` (actor matrix). No parent authority moves with
+  `ownership_stage` (INV-17).
 - The parent gate is a client-enforced challenge that unlocks retrieval of a
   parent-scoped token; policy controls re-challenge frequency.
 
 ### Quest & schedule service
 - Stores quest definitions (parent-authored, arbitrary) and their schedules.
 - Resolves schedules into **quest instances** per child per day
-  ("what's due today").
+  ("what's due today"). Whether instances are materialised eagerly or lazily
+  is an open technical question (`TECHNICAL_MODEL` TOQ-7).
 - Edits are versioned/forward-applying; historical instances keep the
   definition they were created under.
 
 ### Completion / verification service
-- Accepts `completion_request` from child scope for the child's own current
-  quest instance.
-- Reads the `ownership_stage` of the `(child, quest)` pairing:
-  - `CHILD_PARTICIPATED` / `CHILD_OWNED` → transition instance to `verified`
-    immediately and emit `completion.verified`.
-  - `PARENT_GUIDED` → `pending`; surfaces in parent Approvals.
-  - `PARENT_MANAGED` → no child self-mark path; the parent records the
-    completion (→ `verified`).
-- Parent action on `pending`: `approve` → `verified` + event; `not_yet` →
-  `available` (+ optional note), no penalty.
-- `verified` transition is idempotent and produces **exactly one** ledger
-  entry per completion.
-- For `CHILD_PARTICIPATED` an optional non-blocking `parent_review` row may be
-  created for the parent's later glance — it never gates the reward.
+- Owns the `QuestInstance` state machine and the `verification_behaviour`
+  derivation — see `TECHNICAL_MODEL §4` (and INV-10, INV-11, INV-15).
+- Accepts a `CompletionRequest` from child scope for the child's own current
+  quest instance (intent only); the server decides the resulting state from
+  the `(child, quest)` `ownership_stage`.
+- A non-blocking `parent_review` row may be created for a `verified`
+  completion at `CHILD_PARTICIPATED` / `CHILD_OWNED`; it never gates the
+  reward (INV-15).
 
 ### Ownership stage service
-- Stores `ownership_stage` per `(child, quest)`; writable only in parent
-  scope.
-- Tracks a per-pairing counter of consecutive eligible scheduled completions
-  without a `not_yet`; at the configured threshold (**default 8, tunable**)
-  emits an advancement *suggestion* for the parent. Never advances on its own.
-- Records every stage transition (old, new, initiator, timestamp) to
-  `audit_log`. This history is **not** exposed as a child-facing metric or a
-  "progress" surface ([OWNERSHIP_MODEL §9](../experience/OWNERSHIP_MODEL.md)).
+- Owns `ChildQuest.ownership_stage` and `consecutive_ok_count`. The transition
+  rules (parent-scope-only, never autonomous, adjacency question,
+  suggestion threshold) are `TECHNICAL_MODEL §3` (and INV-5, INV-6, INV-16).
+- Emits an advancement **suggestion** at the configured threshold
+  (**default 8, tunable**); it never changes state itself.
+- Records every stage transition to `audit_log` with the parent as initiator;
+  this history is **not** a child-facing or ownership-progress surface
+  (INV-8, INV-9).
 
 ### Progress ledger (append-only)
-- Immutable entries: `{ childId, source(completionId/adjustment), points,
-  timestamp }`.
-- Only the server writes entries, only in response to a `completion.verified`
-  event (or an explicit parent adjustment, which is additive-only in MVP).
-- Balances / daily / weekly views are **projections** over the ledger, not
-  stored mutable counters.
-- Separate **Lifetime Achievement** projection (never decremented by
-  redemptions) vs **Spendable Balance** projection.
+- Owns `LedgerEntry`. Rules — append-only, server-written only, one `earn`
+  per `verified` completion, projections not stored counters, Lifetime
+  Achievement vs Spendable Balance — are `TECHNICAL_MODEL §6–§7`
+  (and INV-11, INV-12, INV-13, INV-14).
 
 ### Rewards service
-- Parent-defined rewards: cost, redemption mode (`self_service` /
-  `parent_confirmed`).
-- `self_service`: child intent → server checks spendable balance → writes a
-  redemption ledger entry (negative on spendable, no effect on lifetime) →
-  notifies parent.
-- `parent_confirmed`: child intent → `pending_reward` → parent grants.
+- Owns `Reward` and `RewardRedemption`. Redemption modes (`self_service` /
+  `parent_confirmed`) and the "redeem affects Spendable Balance only" rule
+  are `TECHNICAL_MODEL §6`. No wind-down rule for `CHILD_OWNED` routines
+  (OQ-C unresolved).
 
 ### Age-adaptation resolver
 - Input: child birthdate/explicit band + per-dimension overrides.
 - Output: a `complexityProfile` (band + resolved values for vocabulary, text
   amount, iconography, interaction complexity, task complexity, reading
-  requirement, reward presentation, independence level).
-- Delivered with the "today" payload; client selects component variants from
-  it. No age logic branches scattered in the client.
+  requirement, reward presentation). Delivered with the "today" payload;
+  client selects component variants from it. No age logic branches scattered
+  in the client.
+- Age band also sets the **default** `ownership_stage` for a newly assigned
+  quest. Exactly how that derivation is wired — and whether any
+  stage/"independence level" value belongs in the client-facing
+  `complexityProfile` at all (INV-8) — is `TECHNICAL_MODEL` TOQ-9.
 
 ### Notification service
 - Opt-in only. Informational templates ("Mia marked 2 quests"). No
   re-engagement or loss-framed messages. Never targets the child.
 
-## Data model (core entities, MVP)
+## Data model
 
-- **account** — parent identity, settings, parent-gate config.
-- **child** — `accountId`, name, avatar, birthdate/band, adaptation overrides.
-- **quest** — `accountId`, title, icon/art ref, points, age suitability,
-  active/archived, version. *(No `verification_required` /
-  `self_mark_preauthorized` — removed; see `child_quest`.)*
-- **quest_schedule** — `questId`, recurrence (days, weekly/daily), time window.
-- **child_quest** — the `(childId, questId)` pairing: `ownership_stage`
-  (`PARENT_MANAGED` / `PARENT_GUIDED` / `CHILD_PARTICIPATED` / `CHILD_OWNED`,
-  default derived from age band), `consecutive_ok_count`, timestamps.
-  Writable only in parent scope. Verification behavior is **computed** from
-  `ownership_stage` — never stored as a separate boolean.
-- **quest_instance** — `questId@version`, `childId`, date, state
-  (`available` / `pending` / `verified` / `not_yet` / `expired`),
-  `stage_at_completion`, timestamps.
-- **completion_request** — `questInstanceId`, `childId`, createdAt, optional
-  note/evidence ref. (Child-writable intent table.)
-- **parent_review** — optional, non-blocking; `questInstanceId`, `childId`,
-  parent note, timestamp. For `CHILD_PARTICIPATED` after-the-fact glances.
-- **ledger_entry** — append-only; `childId`, source, points (+/−), kind
-  (`earn` / `redeem` / `adjustment`), timestamp. Server-writable only.
-- **reward** — `accountId`, name, icon, cost, redemption mode, active.
-- **reward_redemption** — `rewardId`, `childId`, state, timestamps.
-- **audit_log** — parent actions on meaningful state.
+The authoritative domain entities, their identity, and **who may write each**
+are defined in
+[`TECHNICAL_MODEL.md §2`](../architecture/TECHNICAL_MODEL.md) (Domain
+concepts), with the state machines in §3–§4 and the split between
+authoritative state and projections in §7.
 
-### Invariants
+The **persistence implementation** — storage engine, table layout, indexes,
+partitioning, materialisation strategy for `quest_instance` — is an open
+technical question (see below and `TECHNICAL_MODEL` TOQ-3, TOQ-7). It must
+realise §2–§8 of the technical model without introducing any stored value
+that can drift from an authoritative source (no `balance`,
+`verification_required`, `independence_level`, `owned_routine_count`, or
+`streak` column).
 
-- No client writes to `ledger_entry`, `quest`, `quest_schedule`,
-  `child_quest` (incl. `ownership_stage`), `quest_instance.state` (except
-  child → `pending`/`verified` via the completion flow, as the server
-  decides), `reward`, or `child`/`account` outside parent scope.
-- `ownership_stage` is the **single source** for verification behavior; no
-  contradictory boolean flag exists anywhere.
-- One `ledger_entry` of kind `earn` per `verified` completion (idempotency
-  key = completionId).
-- **Lifetime Achievement** `= Σ earn` (monotonic non-decreasing);
-  **Spendable Balance** `= Σ earn − Σ redeem ± adjustment`; both derived,
-  never stored mutable. Points value of a quest does not depend on
-  `ownership_stage`.
-- A child can read/write intent only for their own `childId`.
+## Invariants
+
+The machine-checkable invariants an implementation must uphold — INV-1 …
+INV-18 — are defined in
+[`TECHNICAL_MODEL.md §8`](../architecture/TECHNICAL_MODEL.md), with testable
+acceptance criteria in §9 and traceability to DECISION-001 … DECISION-016 in
+§12.
 
 ## Privacy & safety
 
@@ -211,10 +198,16 @@ custom art pipeline; parent-side analytics beyond daily/weekly projections.
 
 ## Open questions
 
+Technical (construction) questions. Contract-level open points are
+`TECHNICAL_MODEL` TOQ-1 … TOQ-8.
+
 - Client framework (RN / Flutter / native) — decide against team skills +
   animation quality needs.
 - Backend stack and hosting — decide against team skills; keep the service
   boundaries above regardless.
+- **Persistence implementation** — storage engine, schema, and whether
+  `quest_instance` rows are materialised eagerly or lazily
+  (`TECHNICAL_MODEL` TOQ-7).
 - Real-time delivery of `completion.verified` to a co-present child (push vs
   poll vs socket) — MVP can poll on app foreground.
 - Exact parent-gate challenge design for the 3–8 context (adult friction that
