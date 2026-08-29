@@ -227,12 +227,40 @@ class ProgressOut(BaseModel):
 # ----------------------------------------------------------------------- #
 # app factory                                                             #
 # ----------------------------------------------------------------------- #
-def create_app(service: QuestGrowService | None = None, tokens: TokenStore | None = None) -> FastAPI:
+class SignupIn(BaseModel):
+    email: str
+    password: str
+    pin: str
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class UnlockIn(BaseModel):
+    session_token: str
+    pin: str
+
+
+class ChildTokenIn(BaseModel):
+    child_id: str
+
+
+def create_app(
+    service: QuestGrowService | None = None,
+    tokens: TokenStore | None = None,
+    auth=None,
+) -> FastAPI:
+    """``auth`` (an ``auth.AuthService``) is optional. When given, it is the
+    token resolver and the ``/auth/*`` routes are mounted; otherwise a bare
+    ``TokenStore`` is used (dev / C2 tests)."""
     svc = service or QuestGrowService()
-    store = tokens or TokenStore()
+    store = auth or tokens or TokenStore()
     app = FastAPI(title="QuestGrow API", version="0.2.0")
     app.state.service = svc
     app.state.tokens = store
+    app.state.auth = auth
 
     def _scope(authorization: str = Header(default="")) -> Scope:
         if not authorization.startswith("Bearer "):
@@ -269,6 +297,28 @@ def create_app(service: QuestGrowService | None = None, tokens: TokenStore | Non
         from fastapi.responses import JSONResponse
 
         return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    if auth is not None:
+        @app.post("/auth/signup")
+        def signup(body: SignupIn):
+            return {"account_id": auth.signup(email=body.email, password=body.password,
+                                              pin=body.pin)}
+
+        @app.post("/auth/login")
+        def login(body: LoginIn):
+            return {"session_token": auth.login(email=body.email, password=body.password)}
+
+        @app.post("/auth/unlock")
+        def unlock(body: UnlockIn):
+            return {"parent_token": auth.unlock_parent(session_token=body.session_token,
+                                                       pin=body.pin)}
+
+        @app.post("/auth/child-token")
+        def child_token(body: ChildTokenIn, authorization: str = Header(default=""),
+                        p: ParentScope = Depends(_parent)):
+            # _parent already validated the parent-gate token; pass it through
+            tok = auth.issue_child_token(parent_token=authorization[7:], child_id=body.child_id)
+            return {"child_token": tok}
 
     def _quest_out(q) -> QuestOut:
         return QuestOut(

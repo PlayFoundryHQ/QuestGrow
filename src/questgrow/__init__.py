@@ -24,6 +24,7 @@ from .enums import (
 from .errors import AuthorizationError, ContractViolation, NotFound, QuestGrowError
 from .events import CelebrationEvent, EventSink
 from .adaptation import ComplexityProfile, resolve_complexity_profile
+from .auth import AuthService
 from .entities import QuestSchedule
 from .repository import InMemoryRepository, Repository
 from .sqlite_repository import SqliteRepository
@@ -38,6 +39,7 @@ __all__ = [
     "Repository",
     "ComplexityProfile",
     "resolve_complexity_profile",
+    "AuthService",
     "EventSink",
     "CelebrationEvent",
     "ChildScope",
