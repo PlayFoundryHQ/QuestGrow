@@ -50,9 +50,11 @@ is a bug. No infinite lists, no browsable galleries in the child flow, no
 ## 6. Calm gamification
 
 Rewards are frequent, small, and warm. Avoid variable-ratio reinforcement,
-countdown timers, streak-loss warnings, and any mechanic whose emotional
-hook is fear of loss. Consistency is celebrated; broken consistency is not
-penalized.
+countdown timers, and any mechanic whose emotional hook is fear of loss.
+**QuestGrow does not use streaks** — no breakable consecutive-day counter,
+shown to no one. Consistency is celebrated as *progressive consistency*
+("you showed up 4 days this week"); a missed occurrence is a neutral
+non-event ([GAMIFICATION → progressive consistency](../game-design/GAMIFICATION.md)).
 
 ## 7. Integrity by construction
 
@@ -85,9 +87,9 @@ in particular, must be fast, batchable, and feel like part of the game
 ## 11. Quiet by default
 
 No notifications unless the parent opts in. When present, notifications are
-informational ("Mia marked 2 quests"), never manipulative ("Don't lose your
-streak!"). Nothing about QuestGrow should train compulsive checking — in the
-child or the parent.
+informational ("Mia marked 2 quests"), never manipulative or loss-framed
+(and there is no streak to invoke — see principle 6). Nothing about QuestGrow
+should train compulsive checking — in the child or the parent.
 
 ## 12. Content neutrality
 

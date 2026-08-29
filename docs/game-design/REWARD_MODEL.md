@@ -4,34 +4,50 @@ Defines points, rewards, and redemption. Governed by
 [Core Principles C (9–12)](../product-foundation/CORE_PRINCIPLES.md) and
 [#14 (trust before points)](../product-foundation/CORE_PRINCIPLES.md).
 Sits under [GAMIFICATION](./GAMIFICATION.md), which defines the four reward
-horizons and the banned mechanics list.
+horizons and the banned mechanics list. Reward *timing* follows the two child
+reward modes in [OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md); reward
+*value* does not depend on ownership stage.
 
 ## Points
 
 - **Parent-configurable currency** attached to quests. Default values are
   provided; parents can change them or disable points entirely account-wide.
-- Points **only ever increase** from a valid completion. There is no
-  deduction, downgrade, or decay mechanic (Core Principle #12).
+- **Lifetime Achievement only ever increases** from a valid completion — there
+  is no deduction, downgrade, or decay mechanic on it (Core Principle #12).
+  The **spendable balance** decreases when a reward is redeemed (see *Two
+  counters*). The two must never be conflated: "points only go up" is true of
+  lifetime, not of the spendable wallet.
 - Points are recorded as **append-only ledger entries**, written **only by the
   server** in response to a `completion.verified` event, exactly once per
   completion (idempotency key = completion id). No client writes balances.
   See [ARCHITECTURE → progress ledger](../product-delivery/ARCHITECTURE.md).
 - **Trust before points (Core Principle #14):** a completion that would award
-  points either requires parent approval, or is a quest the parent explicitly
-  pre-authorized as self-markable. No third path. See
+  points either requires parent approval (`ownership_stage = PARENT_GUIDED`),
+  or the quest is at a stage the parent advanced it to
+  (`CHILD_PARTICIPATED` / `CHILD_OWNED`), which is itself the parent's
+  pre-authorization. No third path. See
+  [OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md),
   [PARENT_CHILD_MODEL → anti-self-scoring](../trust-and-safety/PARENT_CHILD_MODEL.md)
   and [VERIFICATION](../trust-and-safety/VERIFICATION.md).
+- **Reward value is ownership-independent.** A quest is worth the same points
+  whether it is `PARENT_GUIDED` or `CHILD_OWNED` — mastering a routine never
+  reduces its reward. Only the *timing* of the reward changes: "do → wait for
+  parent → celebrate" at `PARENT_GUIDED`, "do → celebrate immediately" at
+  `CHILD_PARTICIPATED` / `CHILD_OWNED`.
 
 ## Two counters, never conflated
 
 | Counter | Definition | Used for |
 |---|---|---|
-| **Lifetime** | Σ of all `earn` entries | Long-term progression, milestone unlocks, weekly/overall sense of achievement |
-| **Spendable** | Σ `earn` − Σ `redeem` ± `adjustment` | Reward redemption balance |
+| **Lifetime Achievement** | Σ of all `earn` entries | Long-term progression, milestone unlocks, weekly/overall sense of achievement. Only ever increases. |
+| **Spendable Balance** | Σ `earn` − Σ `redeem` ± `adjustment` | What the child can spend on rewards. Decreases on redemption. |
 
-Redeeming a reward reduces **spendable** but never **lifetime** — so cashing
-in a reward never feels like going backwards (Core Principle #11). Both are
-**projections over the ledger**, never stored mutable numbers.
+Example: *Lifetime Achievement: 420 · Spendable Balance: 120.*
+
+Redeeming a reward reduces **Spendable Balance** but never **Lifetime
+Achievement** — so cashing in a reward never feels like going backwards
+(Core Principle #11). Both are **projections over the ledger**, never stored
+mutable numbers.
 
 ## Rewards
 

@@ -7,6 +7,11 @@ especially **#14 (trust before points)** and **#15 (verification is part of
 the game loop)**. The trust boundary it enforces is defined in
 [PARENT_CHILD_MODEL](./PARENT_CHILD_MODEL.md).
 
+**Whether a completion needs verification is derived from the quest's
+ownership stage for that child** — verification is present only at
+`PARENT_GUIDED` (and as parent-recording at `PARENT_MANAGED`). See
+[OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md).
+
 ## Why verification exists
 
 A child must not be able to tap a button and award themselves points,
@@ -20,18 +25,21 @@ positive** (Core Principle #15), never like a parent doing data entry.
 Child marks quest done
         │
         ▼
- verification_required?
-   │                 │
-   no / pre-authorized│ yes
-   ▼                  ▼
- verified          pending  ──► appears in parent Approvals queue
-   │                             │
+ ownership_stage?
+   │                         │
+   CHILD_PARTICIPATED /       │ PARENT_GUIDED
+   CHILD_OWNED                ▼
+   ▼                  pending  ──► appears in parent Approvals queue
+ verified                     │
    │              parent approves│         parent: "not yet"
    │                             ▼                 ▼
    │                          verified          available (optional gentle note)
    ▼                             │
  celebration + 1 ledger entry ◄──┘
 ```
+
+(`PARENT_MANAGED`: the parent records the completion themselves; it goes
+straight to `verified`. The child has no self-mark path at that stage.)
 
 - **pending** — child sees a calm "waiting for grown-up" state (friendly
   sleeping icon). No points, no celebration yet. Not an error, not a failure.
@@ -61,23 +69,33 @@ Child marks quest done
 
 ## Which quests require verification
 
-Per-quest parent setting (`verification_required`). Guidance and age
-influence are in [QUEST_MODEL → verification-requirement guidance](../game-design/QUEST_MODEL.md).
-Summary:
+Not a direct toggle. Verification is present exactly when the quest's
+`ownership_stage` for that child is `PARENT_GUIDED`
+([OWNERSHIP_MODEL → the four stages](../experience/OWNERSHIP_MODEL.md)).
+The parent influences it by moving the quest along the ownership arc, not by
+flipping a "verification" flag.
 
-- Require verification when the outcome matters or self-report is unreliable,
-  for younger children, and for new routines.
-- Allow self-marking for low-stakes quests, older children, and
-  well-established routines.
+- New routines and younger children start at `PARENT_MANAGED` /
+  `PARENT_GUIDED` → verification (or parent recording) is present.
+- Reliable routines and older children reach `CHILD_PARTICIPATED` /
+  `CHILD_OWNED` → no blocking verification.
 
 ## Granting independence over time (Core Principle #20)
 
-As a routine becomes reliable, the parent can switch a quest from
-"requires verification" to self-mark (`self_mark_preauthorized = true`). This
-is a deliberate, parent-controlled act of trust — the parent is
-*pre-authorizing* that class of completion, which is the second (and only
-other) valid path past anti-self-scoring. Periodic spot-checks are encouraged
-for older children.
+Granting independence **is** advancing the quest's ownership stage
+(`PARENT_GUIDED` → `CHILD_PARTICIPATED` → `CHILD_OWNED`). The app may suggest
+it after 8 consecutive eligible scheduled completions without a "not yet"
+(a tunable default); the parent confirms. This is the deliberate,
+parent-controlled act of trust that is the second (and only other) valid path
+past anti-self-scoring.
+
+At `CHILD_PARTICIPATED` and `CHILD_OWNED` the child's celebration is
+**immediate every time**. Any parent spot-check happens **after** completion
+and must **never** delay, withhold, or probabilistically gate the celebration
+or points — that would be variable-ratio reinforcement, banned by
+[CORE_PRINCIPLES #10](../product-foundation/CORE_PRINCIPLES.md). A spot-check
+that finds a problem is a parenting conversation and, if needed, a stage
+regression (never punitive) — it does not claw back a reward already given.
 
 ## Optional evidence (post-MVP)
 
@@ -99,9 +117,12 @@ Not in MVP. See [ROADMAP](../product-delivery/ROADMAP.md).
   the child's own current quest instance, and only writes it to the
   child-writable intent table.
 - The `verified` transition and the resulting ledger entry are produced
-  **server-side**, only from either (a) parent approval or (b) a quest flagged
-  `self_mark_preauthorized`.
-- Even a tampered client cannot self-verify or write points.
+  **server-side**, only from either (a) parent approval (stage
+  `PARENT_GUIDED`) or (b) the quest's `ownership_stage` for that child being
+  `CHILD_PARTICIPATED` / `CHILD_OWNED` (the parent-authorized self-mark path).
+- `ownership_stage` is stored on the `(child, quest)` pairing and is only
+  writable in parent scope. Even a tampered client cannot self-verify, change
+  its own stage, or write points.
 
 See [ARCHITECTURE → completion / verification service](../product-delivery/ARCHITECTURE.md)
 and [PARENT_CHILD_MODEL → enforced in the data model and services](./PARENT_CHILD_MODEL.md).

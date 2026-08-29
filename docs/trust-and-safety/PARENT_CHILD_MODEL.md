@@ -10,13 +10,18 @@ detailed in [VERIFICATION](./VERIFICATION.md); the parent and child sides of
 the loop in [PARENT_JOURNEY](../experience/PARENT_JOURNEY.md) and
 [CHILD_JOURNEY](../experience/CHILD_JOURNEY.md).
 
+**Whether a given completion requires verification is derived from the
+quest's ownership stage for that child**, not configured per quest — see
+[OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md).
+
 ## Roles
 
 ### Parent (account holder)
 - Owns the account and the device the app lives on.
 - Creates and manages child profiles.
-- Defines quests, schedules, verification requirements, points, and rewards.
-- Verifies pending completions.
+- Defines quests, schedules, points, and rewards.
+- Moves each quest along the ownership arc (which determines verification);
+  verifies pending completions.
 - Configures age adaptation.
 - Views progress and history.
 - The only role that can change meaningful state.
@@ -27,8 +32,8 @@ the loop in [PARENT_JOURNEY](../experience/PARENT_JOURNEY.md) and
 - Requests or marks completion.
 - Redeems rewards where the parent has allowed self-redemption.
 - Receives celebration and sees progress.
-- Cannot change points, rewards, goals, schedules, verification, age settings,
-  or any other child's data.
+- Cannot change points, rewards, goals, schedules, ownership stage, age
+  settings, or any other child's data.
 
 A parent account may have multiple children. A child profile is data owned by
 the parent, not an independent account.
@@ -65,11 +70,12 @@ request) but can never *commit* a meaningful state change.
                  │ available  │
                  └─────┬──────┘
        child marks done │
-      ┌─────────────────┴──────────────────┐
-      │ verification required?             │
-      │   no  → verified (auto)            │
-      │   yes → pending                    │
-      └─────────────────┬──────────────────┘
+      ┌─────────────────┴──────────────────────────┐
+      │ ownership_stage (of this child × quest)?   │
+      │   CHILD_PARTICIPATED / CHILD_OWNED → verified (immediate)
+      │   PARENT_GUIDED                    → pending
+      │   PARENT_MANAGED  → parent records → verified
+      └─────────────────┬──────────────────────────┘
                         │
               pending ──┼── parent approves ──► verified ──► celebration + ledger entry
                         │
@@ -77,8 +83,9 @@ request) but can never *commit* a meaningful state change.
 ```
 
 - **available** — quest is doable today.
-- **pending** — child marked done; awaiting parent verification. Child sees a
-  calm "waiting for grown-up" state. No points, no celebration yet.
+- **pending** — child marked done on a `PARENT_GUIDED` quest; awaiting parent
+  verification. Child sees a calm "waiting for grown-up" state. No points, no
+  celebration yet. (Only `PARENT_GUIDED` produces this state.)
 - **verified** — completion is valid. Triggers celebration and a single
   append-only points/progress ledger entry (idempotent — one entry per
   completion).
@@ -90,15 +97,17 @@ request) but can never *commit* a meaningful state change.
 
 ## Which quests require verification?
 
-Per-quest parent setting. Guidance:
+Derived from the quest's `ownership_stage` for that child, not a per-quest
+toggle ([OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md)):
 
-- **Require verification** for quests where self-report is unreliable or the
-  outcome matters (tidying, teeth brushing for younger children, homework).
-- **Allow self-marking** for low-stakes quests, for older children, or once a
-  routine is well established and the parent wants to grant independence.
-- Age adaptation can shift defaults: younger bands lean toward verification
-  and parent co-presence; older bands lean toward self-marking with periodic
-  spot-checks.
+- `PARENT_MANAGED` → parent records the completion (no child self-mark path).
+- `PARENT_GUIDED` → child self-marks; completion is `pending` until the parent
+  approves. **This is the only stage that requires verification.**
+- `CHILD_PARTICIPATED` / `CHILD_OWNED` → child self-marks; `verified`
+  immediately; any parent review is post-hoc and non-blocking.
+
+Age band sets the *default* starting stage; the parent moves quests along the
+arc over time.
 
 ## Verification as play, not admin
 
@@ -117,20 +126,23 @@ A child must not be able to tap a button and award themselves points,
 progress, rewards, or goal completion. Any completion that would change
 meaningful state either:
 
-1. requires parent approval (**pending → verified**), or
-2. is explicitly designated by the parent as self-markable, in which case the
-   *parent has pre-authorized* that class of completion.
+1. requires parent approval — the quest is at `PARENT_GUIDED`
+   (**pending → verified**), or
+2. the quest is at `CHILD_PARTICIPATED` / `CHILD_OWNED`, a stage the parent
+   deliberately advanced it to — the *parent has pre-authorized* that class of
+   completion.
 
-There is no third path. The server enforces this regardless of client
-behavior.
+There is no third path. `ownership_stage` is writable only in parent scope,
+and the server enforces this regardless of client behavior.
 
 ## Reward redemption
 
 - Parent defines each reward, its point cost, and whether redemption is
   **self-service** (child can redeem, points deducted, parent notified) or
   **parent-confirmed** (child requests, parent grants).
-- Lifetime progress (used for long-term unlocks) is tracked separately from
-  spendable points so redemption never feels like regression.
+- **Lifetime Achievement** (used for long-term unlocks) is tracked separately
+  from **Spendable Balance** so redemption never feels like regression
+  ([REWARD_MODEL → two counters](../game-design/REWARD_MODEL.md)).
 
 ## Multi-parent / caregiver (future)
 

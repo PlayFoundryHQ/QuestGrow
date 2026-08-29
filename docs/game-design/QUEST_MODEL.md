@@ -5,6 +5,10 @@ something the child does today. Governed by
 [Core Principles E (17–20)](../product-foundation/CORE_PRINCIPLES.md) and
 [#21 (not a checklist)](../product-foundation/CORE_PRINCIPLES.md).
 
+Whether a completion needs verification is **not** a quest field — it is
+**derived from the quest's ownership stage** for that child. See
+[OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md).
+
 ## Principle: the catalog is not fixed
 
 There is **no built-in list** of "correct" quests. Parents define goals that
@@ -29,14 +33,24 @@ is a thin wrapper around it (Core Principle #5). See
 | `title` | Short, parent's words | — (required) |
 | `icon` / `art ref` | From starter asset set; custom art post-MVP | — (required) |
 | `points` | Parent-configurable; can be disabled account-wide | template default |
-| `verification_required` | Whether completion needs parent approval | see guidance below |
-| `self_mark_preauthorized` | Parent explicitly allows child self-marking for this quest | derived from `verification_required` |
 | `age_suitability` | Informational age-band hint | all bands |
 | `active` / `archived` | Soft lifecycle | active |
 | `version` | Edits are forward-applying; historical instances keep their version | 1 |
 
 Minimum to create a working quest: `title` + `icon`. Everything else has a
 default ([PARENT_JOURNEY](../experience/PARENT_JOURNEY.md)).
+
+There is **no** `verification_required` or `self_mark_preauthorized` field.
+Verification behavior is computed from the `ownership_stage` of the
+**(child, quest)** pairing
+([OWNERSHIP_MODEL → data model implication](../experience/OWNERSHIP_MODEL.md)):
+
+| `ownership_stage` | Completion behavior |
+|---|---|
+| `PARENT_MANAGED` | Parent records the completion; no child self-mark path |
+| `PARENT_GUIDED` | Child self-marks → `pending` → parent approval finalizes reward |
+| `CHILD_PARTICIPATED` | Child self-marks → `verified` immediately; optional post-hoc parent review (no gate) |
+| `CHILD_OWNED` | Child self-marks → `verified` immediately; no routine review nudge |
 
 ## Schedule (`quest_schedule`)
 
@@ -55,11 +69,11 @@ per child per day — "what's due today"
 One row per (quest version, child, date). Holds the state machine:
 
 ```
-available ──child marks done──► (verification_required?)
-   ▲                               │ no  → verified
-   │                               │ yes → pending ──parent approves──► verified
-   │                               │              └─parent "not yet"──► available
-   └───────────────────────────────┘
+available ──child marks done──► (ownership_stage?)
+   ▲                               │ CHILD_PARTICIPATED / CHILD_OWNED → verified
+   │                               │ PARENT_GUIDED → pending ──parent approves──► verified
+   │                               │                        └─parent "not yet"──► available
+   └───────────────────────────────┘ PARENT_MANAGED → parent records → verified
                               (end of day, incomplete) → expired / rollover (no penalty)
 ```
 
@@ -72,16 +86,24 @@ Only a `verified` transition produces a points/progress ledger entry, exactly
 once ([REWARD_MODEL](./REWARD_MODEL.md),
 [GAMIFICATION](./GAMIFICATION.md)).
 
-## Verification-requirement guidance
+## Ownership stage (replaces per-quest verification config)
 
-| Lean toward **require verification** | Lean toward **self-mark** |
-|---|---|
-| Outcome matters / self-report unreliable (tidying, teeth for younger kids, homework) | Low-stakes quests |
-| Younger age bands | Older age bands |
-| New, not-yet-established routines | Well-established routines where the parent wants to grant independence |
+Each quest sits at an `ownership_stage` **per child**. The parent does not
+toggle "verification" directly — they move a quest along the ownership arc,
+and verification behavior follows
+([OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md)).
 
-Age adaptation shifts defaults: younger → verification + parent co-presence;
-older → self-mark with periodic spot-checks.
+- **Default stage** is derived from the child's age band when the quest is
+  assigned (younger → `PARENT_MANAGED` / `PARENT_GUIDED`; older →
+  `PARENT_GUIDED` / `CHILD_PARTICIPATED`). MVP may start every quest at
+  `PARENT_GUIDED`.
+- **Advancement** is app-suggested / parent-confirmed (default trigger: 8
+  consecutive eligible scheduled occurrences without a "not yet"; the 8 is a
+  tunable product default).
+- **Regression** is allowed, parent-initiated, and never framed as failure
+  ([CORE_PRINCIPLES #20](../product-foundation/CORE_PRINCIPLES.md)).
+- Quests progress **independently** — a child can own one routine while still
+  being guided on another. There is no child-level independence score.
 
 ## Age adaptation of quests (Core Principle #18)
 
@@ -91,8 +113,8 @@ The same quest renders differently by the child's resolved complexity level:
   sequence for ~7–8 (e.g. "get dressed" → "get dressed: socks, shirt,
   trousers, shoes").
 - **Reading requirement** — icon-only vs short label vs short sentence.
-- **Independence level** — co-present vs solo-with-verification vs
-  solo-with-spot-check.
+- **Independence level** — expressed through the quest's `ownership_stage`
+  (§ Ownership stage), which age sets a default for.
 
 Adaptation is delivered as resolved data with the daily payload; the client
 picks component variants (no scattered age branching). See

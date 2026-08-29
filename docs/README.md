@@ -18,6 +18,7 @@ docs/
 ├── experience/             HOW it feels to use
 │   ├── DESIGN_PRINCIPLES.md    Visual / interaction / system design rules
 │   ├── UX_PRINCIPLES.md        Child & parent UX rules, screen inventories, age table
+│   ├── OWNERSHIP_MODEL.md      Central developmental arc: PARENT_MANAGED → CHILD_OWNED
 │   ├── CHILD_JOURNEY.md        The child's day-to-day journey and emotional arc
 │   └── PARENT_JOURNEY.md       The parent's onboarding, daily, and weekly journeys
 │
@@ -31,7 +32,7 @@ docs/
 │   └── VERIFICATION.md         Verification as part of the game loop; enforcement; evidence
 │
 └── product-delivery/       WHAT gets built, and when
-    ├── MVP.md                  The 11 MVP capabilities, cross-cutting requirements, acceptance
+    ├── MVP.md                  The MVP capabilities, cross-cutting requirements, acceptance
     ├── ROADMAP.md              Post-MVP layers and how items enter the roadmap
     └── ARCHITECTURE.md         Services, data model, invariants, privacy posture
 ```
@@ -41,7 +42,10 @@ docs/
 1. **Product foundation** defines *why* QuestGrow exists and the non-negotiable
    rules every decision is judged against.
 2. **Experience / game design / trust & safety** define *how* the product
-   works and feels within those rules.
+   works and feels within those rules. The
+   [Ownership Model](./experience/OWNERSHIP_MODEL.md) — the arc from
+   parent-managed to child-owned routines — is the spine most of these
+   documents hang from.
 3. **Product delivery** defines *what* the first version builds and what comes
    next.
 

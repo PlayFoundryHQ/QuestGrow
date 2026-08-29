@@ -5,6 +5,13 @@ How the child experiences QuestGrow, day to day. Governed by
 [B (5–8)](../product-foundation/CORE_PRINCIPLES.md), and detailed further in
 [UX_PRINCIPLES](./UX_PRINCIPLES.md).
 
+The child experiences only **two reward modes**
+([OWNERSHIP_MODEL §4](./OWNERSHIP_MODEL.md)):
+**A — do → wait for parent → celebrate**, and
+**B — do → celebrate immediately**. Which mode a quest uses is decided by its
+ownership stage, on the parent side; the child never sees stages, stage
+names, or an independence level.
+
 ## One-line model
 
 The child sees a few friendly pictures of things to do today, goes and does
@@ -24,10 +31,11 @@ happy happens, and their progress grows.
    part of the interaction by design (Core Principle #6). The app is not
    needed while it happens.
 5. **Come back and mark** — one large tap on "I did it."
-   - No verification required → instant celebration (see step 6).
-   - Verification required → calm **"waiting for grown-up"** state (a friendly
-     sleeping icon, never an error). No points yet, no celebration yet. See
-     [VERIFICATION](../trust-and-safety/VERIFICATION.md).
+   - **Mode B** (quest is `CHILD_PARTICIPATED` / `CHILD_OWNED`) → instant
+     celebration (see step 6).
+   - **Mode A** (quest is `PARENT_GUIDED`) → calm **"waiting for grown-up"**
+     state (a friendly sleeping icon, never an error). No points yet, no
+     celebration yet. See [VERIFICATION](../trust-and-safety/VERIFICATION.md).
 6. **Celebration** — on a valid completion, a short (1–3s) full-screen
    celebration: animation, sound, character reaction. Same warmth every time.
 7. **See progress** — today's indicator fills a little more. Optionally the
@@ -49,15 +57,21 @@ happy happens, and their progress grows.
 | State | Presentation |
 |---|---|
 | Available | Bright, inviting quest card |
-| Pending ("waiting for grown-up") | Calm waiting art, no negativity |
+| Pending ("waiting for grown-up") | Calm waiting art, no negativity (Mode A / `PARENT_GUIDED` quests only) |
 | Done | Happy completed card for the rest of the day |
 | Day progress | Filling indicator (jar, path, etc.) |
-| Week progress | Seven stars/blocks/stepping-stones = active days |
+| Week progress | Seven stars/blocks/stepping-stones = active days ("you showed up 4 days this week"); no streak, nothing to break |
 
 The child **never** sees: failed, late, missed, "you lost points," red error
-states, streak-loss warnings, another child's data, verification controls,
-settings, or any list longer than the day's quests. (Core Principles #12,
-#23; [GAMIFICATION → banned mechanics](../game-design/GAMIFICATION.md).)
+states, streaks or streak-loss warnings, another child's data, verification controls,
+settings, ownership stages or an independence level, or any list longer than
+the day's quests. (Core Principles #12, #23;
+[GAMIFICATION → banned mechanics](../game-design/GAMIFICATION.md);
+[OWNERSHIP_MODEL §8](./OWNERSHIP_MODEL.md).)
+
+If a parent ever moves a quest to more support (regression), the child at most
+sees a gentle "let's do this one together for a while" — never a downgrade,
+lost level, or failure ([OWNERSHIP_MODEL §7](./OWNERSHIP_MODEL.md)).
 
 ## What the child can do
 
@@ -82,7 +96,7 @@ parent gate. Enforced server-side, not just hidden in the UI
 |---|---|---|---|
 | Quests on screen | 1–3 | 3–5 | 5–7 |
 | Text | Icon-only + audio | Short labels + audio | Short sentences |
-| Independence | Parent co-present | Child solo, parent verifies | Child solo, lighter verification |
+| Default ownership stage | `PARENT_MANAGED` / `PARENT_GUIDED` | `PARENT_GUIDED` | `PARENT_GUIDED` / `CHILD_PARTICIPATED` |
 | Reward presentation | Big immediate animation | Animation + progress | Progress, collectibles, stories |
 
 Full table in [UX_PRINCIPLES](./UX_PRINCIPLES.md).
@@ -90,5 +104,6 @@ Full table in [UX_PRINCIPLES](./UX_PRINCIPLES.md).
 ## Related
 
 - Parent side of the same loop: [PARENT_JOURNEY](./PARENT_JOURNEY.md)
+- Why a quest is Mode A or Mode B: [OWNERSHIP_MODEL](./OWNERSHIP_MODEL.md)
 - The loop's trust rules: [PARENT_CHILD_MODEL](../trust-and-safety/PARENT_CHILD_MODEL.md)
 - What celebrations and progress mean: [GAMIFICATION](../game-design/GAMIFICATION.md)

@@ -48,17 +48,20 @@ back-stack deeper than 2.
 
 ### What the child can never do
 
-Change points, rewards, goals, schedules, age settings, or another child's
-data; approve their own pending quests; see verification controls; navigate
-into the parent app without the parent gate.
+Change points, rewards, goals, schedules, ownership stages, age settings, or
+another child's data; approve their own pending quests; see verification
+controls or stage names; navigate into the parent app without the parent
+gate.
 
 ## Parent experience
 
 ### Mental model
 
 The parent runs the game: sets up each child, defines quests and when they
-recur, decides which need verification, sets rewards, and does a quick daily
-pass to approve pending completions and glance at progress.
+recur, moves each quest along the ownership arc (which decides whether it
+needs verification — [OWNERSHIP_MODEL](./OWNERSHIP_MODEL.md)), sets rewards,
+and does a quick daily pass to approve pending completions and glance at
+progress.
 
 ### Screen inventory (parent side, MVP)
 
@@ -67,7 +70,9 @@ pass to approve pending completions and glance at progress.
 3. **Children** — create/edit child profile (name, avatar, birthdate/age band,
    adaptation overrides).
 4. **Quests** — create/edit quests: title, icon, art, schedule (days/times),
-   verification required?, points/reward, age band suitability, active toggle.
+   points/reward, age band suitability, active toggle, and per-child
+   ownership stage (with advancement suggestions). No standalone
+   "verification" flag — it follows the ownership stage.
 5. **Rewards** — define rewards and how points map to them.
 6. **Progress** — daily and weekly history per child.
 7. **Settings** — account, notifications (off by default), parent gate.
@@ -84,6 +89,8 @@ pass to approve pending completions and glance at progress.
 
 ### Verification UX
 
+- Only `PARENT_GUIDED` quests generate approvals; `CHILD_PARTICIPATED` /
+  `CHILD_OWNED` completions never wait on the parent.
 - A pending completion appears in **Approvals** and (optionally) as a quiet
   notification.
 - Approving is one tap and **immediately triggers the child's celebration**
@@ -91,6 +98,9 @@ pass to approve pending completions and glance at progress.
 - "Not yet" is gentle: it returns the quest to available with an optional
   parent note ("let's do it again together"), never a penalty.
 - Approvals are batchable ("approve all") for low-stakes quests.
+- An **ownership advancement suggestion** ("ready to let her own this quest?")
+  may appear here; it is an invitation with [Not yet] / [Let her own it],
+  never an obligation ([OWNERSHIP_MODEL §6](./OWNERSHIP_MODEL.md)).
 
 ## Age adaptation (both sides, child-facing impact)
 
@@ -105,7 +115,7 @@ per-dimension parent overrides. Bands are guidance, not hard gates.
 | Task complexity | Single-step quests | Small multi-step | Multi-step, sequences |
 | Reading required | None | Minimal | Light |
 | Reward presentation | Big immediate animation | Animation + progress | Progress, collectibles, stories |
-| Independence | Parent co-present | Child solo, parent verifies | Child solo, lighter verification |
+| Default ownership stage | `PARENT_MANAGED` / `PARENT_GUIDED` | `PARENT_GUIDED` | `PARENT_GUIDED` / `CHILD_PARTICIPATED` |
 
 Components are built as variants keyed on the band / a derived complexity
 level — never a single fixed layout. See
@@ -114,6 +124,8 @@ level — never a single fixed layout. See
 ## Anti-patterns (never ship)
 
 Infinite scroll or endless content; browsable content galleries in the child
-flow; streak-loss or countdown pressure; push notifications on by default;
-leaderboards or child-to-child comparison; "keep playing" nudges; ads;
-dark-pattern confirmshaming; any child-side path to changing meaningful state.
+flow; streaks of any kind (no breakable consecutive-day counter — use
+progressive consistency instead) or countdown pressure; push notifications on
+by default; leaderboards or child-to-child comparison; "keep playing" nudges;
+ads; dark-pattern confirmshaming; any child-side path to changing meaningful
+state.

@@ -9,8 +9,9 @@ The parent side is allowed to be substantially richer than the child side
 ## One-line model
 
 The parent runs the game: sets up each child, defines the quests and when they
-recur, decides which need verification, sets rewards, then does a quick daily
-pass to approve pending completions and glance at progress.
+recur, moves each quest along the ownership arc (which decides whether it
+needs verification), sets rewards, then does a quick daily pass to approve
+pending completions and glance at progress.
 
 ## Onboarding journey (first run)
 
@@ -42,17 +43,29 @@ pass to approve pending completions and glance at progress.
    - **Batch "approve all"** for low-stakes quests.
    Approving should feel like handing the child a win, not filing paperwork
    (Core Principle #15; [VERIFICATION](../trust-and-safety/VERIFICATION.md)).
+   Only `PARENT_GUIDED` quests appear here — `CHILD_PARTICIPATED` /
+   `CHILD_OWNED` completions never wait on the parent.
 3. **Glance at progress** — daily fill and the weekly view per child.
-4. **Done** — typically under a minute.
+4. **(Occasionally) an ownership suggestion** — "Mia has been doing this
+   herself for two weeks. Ready to let her own this quest? [Not yet] [Let her
+   own it]". One tap, or dismiss. Never an obligation
+   ([OWNERSHIP_MODEL §6](./OWNERSHIP_MODEL.md)).
+5. **Done** — typically under a minute.
 
 ## Occasional / weekly journey
 
 - Adjust quests as the child grows or routines change (Core Principle #20):
   edit, archive, add. Changes apply going forward; history is preserved.
 - Review the weekly view; note what's working.
-- Tune verification requirements — move a well-established routine from
-  "requires verification" to "self-mark" to grant independence
-  ([VERIFICATION → granting independence](../trust-and-safety/VERIFICATION.md)).
+- **Advance a quest's ownership stage** (`PARENT_GUIDED` →
+  `CHILD_PARTICIPATED` → `CHILD_OWNED`) to grant independence — accept the
+  app's suggestion, or do it manually earlier
+  ([OWNERSHIP_MODEL §6](./OWNERSHIP_MODEL.md)).
+- **Move a quest back** to more support if a routine gets bumpy — gently, no
+  penalty, never framed as a downgrade
+  ([OWNERSHIP_MODEL §7](./OWNERSHIP_MODEL.md)).
+- Optionally spot-check an independent quest — *after* completion only, never
+  gating the child's reward.
 - Adjust rewards and point mappings.
 - Adjust age band / adaptation overrides.
 
@@ -61,8 +74,9 @@ pass to approve pending completions and glance at progress.
 1. **Home / dashboard** — per child: today's progress, pending approvals count
 2. **Approvals** — pending completion queue; approve / not-yet; batchable
 3. **Children** — create / edit child profile, age band, adaptation overrides
-4. **Quests** — create / edit / archive; schedule; verification flag; points;
-   age suitability; active toggle
+4. **Quests** — create / edit / archive; schedule; points; age suitability;
+   active toggle; per-child ownership stage (with advancement suggestions).
+   No standalone "verification" flag — it follows the ownership stage.
 5. **Rewards** — define rewards and point mapping
 6. **Progress** — daily and weekly history per child
 7. **Settings** — account, notifications (off by default), parent gate
@@ -78,13 +92,14 @@ compulsive checking — in the child *or* the parent
 
 ## What the parent controls
 
-Everything that changes meaningful state: quests, schedules, verification
-requirements, points, rewards, child profiles, age configuration, approvals,
-and additive point adjustments. See
+Everything that changes meaningful state: quests, schedules, per-child
+ownership stages, points, rewards, child profiles, age configuration,
+approvals, and additive point adjustments. See
 [PARENT_CHILD_MODEL](../trust-and-safety/PARENT_CHILD_MODEL.md).
 
 ## Related
 
 - Child side of the same loop: [CHILD_JOURNEY](./CHILD_JOURNEY.md)
+- The ownership arc the parent moves quests along: [OWNERSHIP_MODEL](./OWNERSHIP_MODEL.md)
 - Verification design in depth: [VERIFICATION](../trust-and-safety/VERIFICATION.md)
 - Quest configuration: [QUEST_MODEL](../game-design/QUEST_MODEL.md)

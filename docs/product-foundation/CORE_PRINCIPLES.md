@@ -95,7 +95,9 @@ The experience should adapt approximately across ages 3–8.
 There is no universal definition of the perfect routine.
 
 ### 20. Adaptation over rigid rules
-The product should support changing goals as children grow.
+The product should support changing goals as children grow. Independence can
+move backward as well as forward; reduced support is never framed as failure
+or loss. See [OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md).
 
 ## F. Product Philosophy
 
@@ -142,6 +144,10 @@ The following should be treated as warning signs:
 - Complex child-facing configuration
 - Excessive text
 - Features whose primary purpose is increasing app usage
+- Framing a reduced ownership stage as a downgrade, lost level, or failure
+- Turning ownership transfer into a KPI, percentage, target, or comparison
+- Streaks / breakable consecutive-day counters that reset on a missed
+  occurrence (use progressive consistency instead)
 
 ## Relationship to MVP
 
@@ -161,6 +167,7 @@ for what comes after.
 | Principles | Primary documents |
 |---|---|
 | A. Child Experience (1–4) | [UX_PRINCIPLES](../experience/UX_PRINCIPLES.md), [CHILD_JOURNEY](../experience/CHILD_JOURNEY.md), [DESIGN_PRINCIPLES](../experience/DESIGN_PRINCIPLES.md) |
+| Ownership arc (#4, #13, #16, #20) | [OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md) |
 | B. Real World & Behavior (5–8) | [MANIFESTO](./MANIFESTO.md), [PRODUCT_VISION](./PRODUCT_VISION.md), [GAMIFICATION](../game-design/GAMIFICATION.md) |
 | C. Gamification (9–12) | [GAMIFICATION](../game-design/GAMIFICATION.md), [REWARD_MODEL](../game-design/REWARD_MODEL.md) |
 | D. Parent & Trust (13–16) | [PARENT_CHILD_MODEL](../trust-and-safety/PARENT_CHILD_MODEL.md), [VERIFICATION](../trust-and-safety/VERIFICATION.md), [PARENT_JOURNEY](../experience/PARENT_JOURNEY.md) |

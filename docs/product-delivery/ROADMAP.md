@@ -49,8 +49,9 @@ obligation, all parent-toggleable
 - Storybook pages unlocked by weeks of participation
 - Seasonal / themed art
 
-Guardrail: no scarcity-, streak-loss-, or comparison-driven mechanics ever
-(Core Principles #9, #12; [GAMIFICATION → banned mechanics](../game-design/GAMIFICATION.md)).
+Guardrail: no scarcity-, streak-, or comparison-driven mechanics ever
+(QuestGrow does not use streaks — Core Principles #9, #12;
+[GAMIFICATION → progressive consistency](../game-design/GAMIFICATION.md)).
 
 ## Layer 4 — Household & caregivers
 
