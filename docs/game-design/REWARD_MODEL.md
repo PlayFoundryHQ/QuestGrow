@@ -14,9 +14,9 @@ reward modes in [OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md); reward
   provided; parents can change them or disable points entirely account-wide.
 - **Lifetime Achievement only ever increases** from a valid completion — there
   is no deduction, downgrade, or decay mechanic on it (Core Principle #12).
-  The **spendable balance** decreases when a reward is redeemed (see *Two
+  The **Spendable Balance** decreases when a reward is redeemed (see *Two
   counters*). The two must never be conflated: "points only go up" is true of
-  lifetime, not of the spendable wallet.
+  Lifetime Achievement, not of the Spendable Balance.
 - Points are recorded as **append-only ledger entries**, written **only by the
   server** in response to a `completion.verified` event, exactly once per
   completion (idempotency key = completion id). No client writes balances.
@@ -92,7 +92,7 @@ Declining a reward request is gentle and carries no penalty (Core Principle
 
 Collectible characters, an evolving world/garden, milestone badges (framed as
 keepsakes, not status), storybook pages unlocked by weeks of participation,
-seasonal themes. Driven by the **lifetime** counter and by weeks-participated,
+seasonal themes. Driven by **Lifetime Achievement** and by weeks-participated,
 never by scarcity or comparison. All optional, all off-able, none required for
 core value. Detail in [GAMIFICATION → long-term](./GAMIFICATION.md) and
 sequencing in [ROADMAP](../product-delivery/ROADMAP.md).

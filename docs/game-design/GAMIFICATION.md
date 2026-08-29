@@ -94,9 +94,10 @@ introduce scarcity-driven or comparison-driven pressure.
 - **Rewards** are parent-defined (e.g. "choose the bedtime story," "trip to
   the park," "sticker"). Parents define the point cost and whether redemption
   is automatic or parent-confirmed.
-- Redemption does not "spend down" visible lifetime progress used for
-  long-term unlocks — track a separate lifetime counter so cashing in a
-  reward never feels like going backwards.
+- Redemption reduces **Spendable Balance** only, never **Lifetime
+  Achievement** — long-term unlocks key off Lifetime Achievement, so cashing
+  in a reward never feels like going backwards
+  ([REWARD_MODEL → two counters](./REWARD_MODEL.md)).
 
 ## Progressive consistency, not streaks
 

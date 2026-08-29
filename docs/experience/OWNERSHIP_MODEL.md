@@ -190,6 +190,21 @@ rather than cosmetic:
 There is **no single `child.independenceLevel`.** Ownership is scoped to the
 **(child × quest)** relationship (§ Data model below).
 
+### The arc does not require fast — or any — handover
+
+QuestGrow's value does **not** depend on a routine reaching `CHILD_OWNED`, or
+on it moving quickly. Before any handover has occurred — and for a younger
+child, that may be most routines for a long time — the product still delivers
+its day-one value: a calm, clear, shared picture of the day; less ambiguity
+about what is expected; and less daily conflict around routines. Ownership
+transfer is the long arc layered on top of that value, not a precondition for
+it. A parent who chooses to keep a given routine at `PARENT_MANAGED` or
+`PARENT_GUIDED` indefinitely is using the product correctly.
+
+*(Whether the ~3–4 experience is best understood as a complete product in its
+own right or primarily an on-ramp where ownership is latent is an unresolved
+open question — see below. This paragraph does not resolve it.)*
+
 ## 11. Downstream: how this wires in
 
 | Document | What it takes from this model |
@@ -227,9 +242,33 @@ See [ARCHITECTURE → data model](../product-delivery/ARCHITECTURE.md).
 
 ## Open questions (non-blocking)
 
+Model-level:
+
 - Whether the 8-occurrence trigger should vary by age band from day one, or
   ship as one global default and be tuned later.
 - Whether CHILD_PARTICIPATED should offer the parent an *opt-in* periodic
   "review these?" nudge, or rely entirely on parent-initiated review.
 - Exact wording and placement of the (rare) child-facing regression message,
   pending UX writing and testing with real families.
+
+Product-thesis-level (surfaced by the skeptical validation passes; **none are
+resolved** — recorded here so they are not silently decided elsewhere):
+
+- **OQ-A** — Is the ~3–4 experience a complete product in its own right, or
+  primarily an on-ramp where ownership is latent?
+- **OQ-B** — At ~7–8, does the model evolve toward a broader
+  responsibility-management model?
+- **OQ-C** — For `CHILD_OWNED` routines, should celebrations/rewards remain
+  fully active (as `DECISION-012` currently states) or gradually wind down?
+  `DECISION-012` stands; the tension with "the app may become less needed for
+  owned routines" is **unresolved** and no wind-down rule is implied.
+- **OQ-D** — Does ownership of individual routines generalise into a broader
+  disposition toward responsibility?
+- **OQ-E** — Should the product ever provide developmental framing/advice to
+  parents?
+- **OQ-F** — Is the mature state continued child engagement with QuestGrow, or
+  the app fading from the child's routine entirely?
+- **OQ-G** — Should the day-one framing lead with "less daily conflict /
+  clarity" or with the longer-term ownership thesis?
+- **OQ-H** — Should the vision explicitly claim decreasing parental
+  involvement, or only increasing child ownership?

@@ -45,7 +45,7 @@ obligation, all parent-toggleable
 [REWARD_MODEL](../game-design/REWARD_MODEL.md)):
 
 - Collectible characters / companions
-- Evolving world or garden driven by the lifetime counter
+- Evolving world or garden driven by Lifetime Achievement
 - Storybook pages unlocked by weeks of participation
 - Seasonal / themed art
 
