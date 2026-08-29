@@ -10,7 +10,7 @@
 ```
 PRODUCT FOUNDATION   (MANIFESTO, PRODUCT_VISION, CORE_PRINCIPLES)
         ↓
-DECISION LOG         (DECISION-001 … DECISION-016 — frozen)
+DECISION LOG         (DECISION-001 … DECISION-019; 001–016 frozen)
         ↓
 OWNERSHIP MODEL      (the developmental arc and state model)
         ↓
@@ -24,7 +24,7 @@ IMPLEMENTATION       (future — schema, API, code)
 This document translates **ratified product semantics into precise technical
 constraints**. It is bound by, and traceable to:
 
-- [`DECISION_LOG.md`](../governance/DECISION_LOG.md) — DECISION-001 … DECISION-016
+- [`DECISION_LOG.md`](../governance/DECISION_LOG.md) — DECISION-001 … DECISION-019
 - [`OWNERSHIP_MODEL.md`](../experience/OWNERSHIP_MODEL.md)
 - [`CORE_PRINCIPLES.md`](../product-foundation/CORE_PRINCIPLES.md)
 - [`PARENT_CHILD_MODEL.md`](../trust-and-safety/PARENT_CHILD_MODEL.md),
@@ -35,8 +35,12 @@ constraints**. It is bound by, and traceable to:
 
 Rules of this document:
 
-- It **must not** resolve any product open question (OQ-A … OQ-H) or introduce
-  a new product decision.
+- It **must not** resolve a product open question or introduce a product
+  decision **on its own authority**. Where a Product Owner decision recorded
+  in [`DECISION_LOG.md`](../governance/DECISION_LOG.md) settles a point, this
+  document records the consequence and cites that decision (e.g.
+  DECISION-017 … DECISION-019). OQ-A's long-term aspect and OQ-B … OQ-H
+  remain open (§10).
 - Where a technical point cannot be derived unambiguously from the sources
   above, it is recorded as a **Technical Open Question (TOQ)** in §10 — never
   given an invented answer.
@@ -47,8 +51,9 @@ Rules of this document:
 ## 2. Domain concepts
 
 Conceptual entities, their identity, and **who may write them**. This is not a
-persistence schema (see [TOQ-7](#10-technical-open-questions)); it is the set
-of things an implementation must represent and the authority over each.
+persistence schema (persistence is a construction concern — §10 / TOQ-7); it
+is the set of things an implementation must represent and the authority over
+each.
 
 | Entity | Identity | Essential attributes | Writable by |
 |---|---|---|---|
@@ -89,17 +94,31 @@ as better or worse ([DECISION-010](../governance/DECISION_LOG.md),
 
 | Transition | Trigger | Actor | Guard | Effect | Non-effects |
 |---|---|---|---|---|---|
-| **Advance** (to a later stage) | parent confirms an advancement suggestion, **or** parent sets it directly | parent scope | none required to advance directly; a *suggestion* is emitted only when `consecutive_ok_count ≥ threshold` (§4) | `ownership_stage` updated; audit-log entry with parent as initiator | no points change; no child-visible event; no reward-value change |
-| **Regress** (to an earlier stage) | parent action | parent scope | none | `ownership_stage` updated; audit-log entry | **no** failure flag, points delta, negative animation, or child-visible "downgrade" ([DECISION-010](../governance/DECISION_LOG.md)); reversible — a regressed quest may advance again later |
+| **Advance** (to any later stage) | parent confirms a one-stage advancement suggestion, **or** parent sets any later stage directly — one or more stages in a single action | parent scope | none required to set it directly. The app's *suggestion* proposes exactly **one** stage and is emitted only when `consecutive_ok_count ≥ threshold` (§4) | `ownership_stage` updated; `consecutive_ok_count` reset to 0; audit-log entry with the parent as initiator. When the parent advances by **more than one stage**, the confirmation UI names the bypassed stage(s) | no points change; no child-visible event; no reward-value change |
+| **Regress** (to any earlier stage) | parent action | parent scope | none | `ownership_stage` updated; `consecutive_ok_count` reset to 0; audit-log entry | **no** failure flag, points delta, negative animation, or child-visible "downgrade" ([DECISION-010](../governance/DECISION_LOG.md)); reversible — a regressed quest may advance again later |
 | **(no transition)** | advancement suggestion emitted; time passing; child activity | — | — | at most one outstanding suggestion per ChildQuest | **the system never changes `ownership_stage` on its own** ([DECISION-008](../governance/DECISION_LOG.md)) |
 
-- The **default** `ownership_stage` at quest assignment is derived from the
-  child's age band ([QUEST_MODEL](../game-design/QUEST_MODEL.md),
-  [OWNERSHIP_MODEL §10](../experience/OWNERSHIP_MODEL.md)). MVP may assign
-  `PARENT_GUIDED` to every quest.
-- Whether transitions are restricted to **adjacent** steps or a parent may
-  jump directly (e.g. `PARENT_GUIDED` → `CHILD_OWNED`) is **[TOQ-1](#10-technical-open-questions)**.
-- Whether a transition resets `consecutive_ok_count` is **[TOQ-2](#10-technical-open-questions)**.
+- The **default** `ownership_stage` at quest assignment is computed
+  server-side from the child's age band
+  ([QUEST_MODEL](../game-design/QUEST_MODEL.md),
+  [OWNERSHIP_MODEL §10](../experience/OWNERSHIP_MODEL.md); §7, TOQ-9).
+  **In MVP this default is `PARENT_GUIDED` for every quest**, and
+  `PARENT_MANAGED` is not assignable or rendered through the MVP UI
+  ([DECISION-019](../governance/DECISION_LOG.md)). `PARENT_MANAGED` and its
+  `PARENT_RECORDS` behaviour (§4) remain a valid part of the contract for
+  post-MVP use.
+- **Forward movement may skip stages.** A parent may set `ownership_stage`
+  to any later value in a single manual action; when more than one stage is
+  bypassed, the confirmation names the bypassed stage(s)
+  ([DECISION-017](../governance/DECISION_LOG.md)). The app's automatic
+  *suggestion* still proposes exactly one stage at a time
+  ([DECISION-008](../governance/DECISION_LOG.md)).
+- **Regression** may move to any earlier stage
+  ([OWNERSHIP_MODEL §7](../experience/OWNERSHIP_MODEL.md)).
+- **Any transition** (advance, skip-advance, or regress) resets
+  `consecutive_ok_count` to 0 — the counter always measures consecutive
+  completions *at the current stage* toward the next one-stage suggestion
+  (TOQ-2).
 
 ## 4. Completion and verification derivation
 
@@ -151,7 +170,10 @@ a `CompletionRequest` (intent). The server sets the resulting state
   (immediately for `IMMEDIATE`; on parent approval for `REQUIRES_APPROVAL`;
   when the parent records for `PARENT_RECORDS`).
 - Write **exactly one** `earn` `LedgerEntry` for this completion, idempotently
-  (INV-11). The idempotency key is **[TOQ-3](#10-technical-open-questions)**.
+  (INV-11). **The idempotency anchor is the `QuestInstance` identity
+  `(questId@version, childId, date)`** — an instance reaches `verified` at
+  most once and yields exactly one `earn` through every path (self-mark,
+  parent approval, parent record) (TOQ-3).
 - `stage_at_completion` records the `ownership_stage` in force at the moment
   of the transition.
 
@@ -166,14 +188,27 @@ regression per §3) — it does not claw back a reward already given.
 
 ### `consecutive_ok_count`
 
-An internal per-ChildQuest counter of consecutive **eligible scheduled**
-occurrences resolved without a `not_yet`. When it reaches the configured
-threshold (**default 8, a tunable product default — not a domain invariant**;
-[DECISION-009](../governance/DECISION_LOG.md)), the system emits an
+An internal per-ChildQuest counter of consecutive **completed** eligible
+scheduled occurrences at the current `ownership_stage`. Effect of each
+outcome on the counter:
+
+| Outcome | Effect |
+|---|---|
+| occurrence `completed` (→ `verified`) | **+1** |
+| parent `not_yet` (decline) | **reset to 0** ([DECISION-009](../governance/DECISION_LOG.md)) |
+| occurrence `expired` (scheduled, not completed) | **no effect** ([DECISION-018](../governance/DECISION_LOG.md)) |
+| non-scheduled day (occurrence never due) | **no effect** ([DECISION-009](../governance/DECISION_LOG.md)) |
+| any `ownership_stage` transition (advance / skip / regress) | **reset to 0** (TOQ-2) |
+
+When the counter reaches the configured threshold (**default 8, a tunable
+product default — not a domain invariant**;
+[DECISION-009](../governance/DECISION_LOG.md)), the system emits a **one-stage**
 advancement **suggestion** to the parent and takes no other action. The
 counter is **never** surfaced to child or parent and is **never** framed as a
-streak (INV-16). Whether `expired` breaks the run is
-**[TOQ-6](#10-technical-open-questions)**.
+streak ([DECISION-013](../governance/DECISION_LOG.md), INV-16). It drives a
+suggestion only at stages that have a next stage (`PARENT_GUIDED`,
+`CHILD_PARTICIPATED`); at `CHILD_OWNED` it is inert, and its behaviour at the
+post-MVP `PARENT_MANAGED` stage is deferred with that stage's experience.
 
 ## 5. Authority / actor matrix
 
@@ -189,13 +224,13 @@ resolved by the Server.
 | Set a quest's `points` value | ✘ | ✔ | — | ✘ |
 | Define / edit a Reward | ✘ | ✔ | — | ✘ |
 | Edit Child profile / age configuration | ✘ | ✔ | — | ✘ |
-| **Set `ChildQuest.ownership_stage`** (advance / regress / direct) | ✘ | ✔ | writes on parent instruction | **✘** ([DECISION-008](../governance/DECISION_LOG.md)) |
+| **Set `ChildQuest.ownership_stage`** — advance one stage, **advance multiple stages**, or regress to any earlier stage | ✘ | ✔ (manual; confirmation names any bypassed stages) | writes on parent instruction; audit-logs the transition and resets `consecutive_ok_count` | **✘** — never autonomously ([DECISION-008](../governance/DECISION_LOG.md), [DECISION-017](../governance/DECISION_LOG.md)) |
 | Emit an advancement **suggestion** | ✘ | ✘ | — | ✔ (suggestion only; no state change) |
 | Create a `CompletionRequest` | ✔ intent (own `childId`) | ✔ (records, for `PARENT_MANAGED`) | resolves | ✘ |
 | Transition `QuestInstance.state` | ✘ | approve / `not_yet` on `pending` | performs all transitions (§4) | `→ expired` only (scheduled) |
 | Write a `LedgerEntry` (`earn`) | ✘ | ✘ | ✔ (one per `verified` completion) | ✘ |
 | Write a `LedgerEntry` (`redeem`) | ✘ | ✘ | ✔ (on valid redemption) | ✘ |
-| Write a `LedgerEntry` (`adjustment`) | ✘ | ✔ instruction (additive-only, MVP) → Server writes | ✘ | **[TOQ-5](#10-technical-open-questions)** |
+| Write a `LedgerEntry` (`adjustment`) | ✘ | ✔ explicit instruction (additive-only in MVP) → Server writes | ✘ | **✘ in MVP** — no automated/system trigger (TOQ-5); a future non-parent trigger would be a separate decision |
 | Create a `ParentReview` | ✘ | ✔ | — | ✘ |
 | Redeem a Reward | ✔ intent | grants (if `parent_confirmed`) | resolves, checks Spendable Balance | ✘ |
 | Read child-facing "today" / own progress | ✔ (own `childId`, no stage labels — INV-8) | ✔ | serves | — |
@@ -206,9 +241,12 @@ resolved by the Server.
 authority set is identical at every `ownership_stage`
 ([DECISION-016](../governance/DECISION_LOG.md), INV-17).
 
-The matrix assumes a single parent scope per account. A future
-second-caregiver / limited-verifier role is out of MVP scope and is
-**[TOQ-8](#10-technical-open-questions)**.
+The matrix assumes a single parent scope per account. A second-caregiver /
+limited-verifier role is **out of MVP scope**
+([PARENT_CHILD_MODEL](../trust-and-safety/PARENT_CHILD_MODEL.md)
+"Multi-parent / caregiver (future)"); the account↔parent-identity
+relationship should be modelled so it is not costly to extend later
+(TOQ-8, deferred).
 
 ## 6. Reward semantics (contract level)
 
@@ -219,8 +257,10 @@ second-caregiver / limited-verifier role is out of MVP scope and is
   idempotent (INV-11).
 - **`redeem`** — `points ≤ 0`, produced by a valid RewardRedemption; affects
   **Spendable Balance only** (INV-13).
-- **`adjustment`** — additive-only in MVP; parent-instructed (INV-12,
-  [TOQ-5](#10-technical-open-questions)).
+- **`adjustment`** — additive-only in MVP; written by the Server **only on
+  explicit parent instruction**, with no automated or system trigger
+  (INV-12; TOQ-5). A future non-parent adjustment trigger (e.g. data
+  remediation) would require a separate decision.
 - A quest's `points` value is **independent of `ownership_stage`** — the same
   quest yields the same points at `PARENT_GUIDED` and at `CHILD_OWNED`
   ([DECISION-012](../governance/DECISION_LOG.md), INV-14). Only the *timing*
@@ -267,7 +307,13 @@ authoritative state; if cached, must be invalidatable and reproducible):
 - daily / weekly progress views ("progressive consistency" — never a stored
   streak counter; [DECISION-013/014](../governance/DECISION_LOG.md))
 - the advancement **suggestion** (a derived signal, not stored state)
-- `complexityProfile` — the resolved age-adaptation values
+- `complexityProfile` — the resolved age-adaptation **rendering** values
+  (vocabulary, text amount, iconography, interaction complexity, task
+  complexity, reading requirement, reward presentation). It **does not**
+  carry `ownership_stage` or an "independence level" — neither ever reaches a
+  child-facing surface (INV-8; TOQ-9). The child's default `ownership_stage`
+  for a newly assigned quest is derived server-side from the age band and
+  stored on the `ChildQuest`, not delivered to the client.
 
 **Rule.** No projection may be persisted in a form that can drift from its
 authoritative source. In particular there is **no** stored `balance`,
@@ -287,7 +333,7 @@ implementation's test suite / static analysis would assert it.
 | **INV-3** | `ownership_stage` ∈ {`PARENT_MANAGED`,`PARENT_GUIDED`,`CHILD_PARTICIPATED`,`CHILD_OWNED`}. | DECISION-003 | enum/type constraint; property test rejects any other value |
 | **INV-4** | Verification behaviour is computed from `ownership_stage` by the §4 function and is never read from a stored flag. | DECISION-007 | no `verification_required` / `self_mark_preauthorized` field; all verification decisions call the pure function |
 | **INV-5** | `ownership_stage` is writable only by a parent-scope actor. | DECISION-008, DECISION-016 | authz test: child-scope and unauthenticated writes to `ChildQuest.ownership_stage` are rejected |
-| **INV-6** | The system never transitions `ownership_stage` autonomously; every transition has a parent actor recorded in `audit_log`. | DECISION-008 | for every `ownership_stage` change there is an `AuditLogEntry` with a parent `actor`; no code path mutates it from a scheduler/job |
+| **INV-6** | The system never transitions `ownership_stage` autonomously; every transition (single-stage, multi-stage, or regression) has a parent actor recorded in `audit_log`. | DECISION-008, DECISION-017 | for every `ownership_stage` change there is an `AuditLogEntry` with a parent `actor`; no code path mutates it from a scheduler/job or from the suggestion evaluator |
 | **INV-7** | Regression is a legal transition to any earlier stage, is reversible, and produces no negative artifact (no failure flag, no points delta, no child-visible event). | DECISION-010 | regress then re-advance succeeds; ledger unchanged across a regression; no child-facing event emitted |
 | **INV-8** | No child-facing surface exposes `ownership_stage`, a stage label, a level, a readiness verdict, or an ownership-progress value. | DECISION-004, DECISION-011 | contract test: every child-scope API response schema is asserted to contain none of these fields |
 | **INV-9** | No stored value and no API response represents an aggregate of ownership progress (count / percentage / ranking / streak of owned routines) as a family-facing value or an optimisation target. | DECISION-011 | schema scan + response-schema scan for `owned_count`, `owned_pct`, `independence_score`, etc. |
@@ -297,7 +343,7 @@ implementation's test suite / static analysis would assert it.
 | **INV-13** | Lifetime Achievement (`Σ earn`) is monotonic non-decreasing; `redeem` and `adjustment` never decrease it. | DECISION-015 | property test over arbitrary earn/redeem/adjustment sequences |
 | **INV-14** | A quest's points value is identical regardless of the `(child, quest)` `ownership_stage`. | DECISION-012 | earn amount for quest Q is a function of Q only, not of `ownership_stage` |
 | **INV-15** | A `ParentReview` never changes, delays, or reverses a completion's `verified` state, its celebration, or its ledger entry. | DECISION-006 | creating a `ParentReview` (including a negative one) leaves `QuestInstance.state` and the ledger unchanged |
-| **INV-16** | No streak / consecutive-day counter is exposed to child or parent; `consecutive_ok_count` is used only to emit advancement suggestions and is never surfaced or framed as a streak. | DECISION-013, DECISION-014 | `consecutive_ok_count` absent from all API response schemas; only referenced by the suggestion evaluator |
+| **INV-16** | No streak / consecutive-day counter is exposed to child or parent; `consecutive_ok_count` is used only to emit advancement suggestions, is never surfaced or framed as a streak, and a missed (`expired`) scheduled occurrence has no effect on it (DECISION-018). | DECISION-013, DECISION-014, DECISION-018 | `consecutive_ok_count` absent from all API response schemas; only referenced by the suggestion evaluator; property test: an `expired` outcome leaves the counter unchanged |
 | **INV-17** | The parent authority set (§5, Parent column) is invariant across all `ownership_stage` values; a stage transition transfers no authority to the child or the system. | DECISION-016 | authz matrix test parameterised over all four stages yields identical parent capabilities and identical child capabilities |
 | **INV-18** | A child-scope actor can create rows only in intent tables (`CompletionRequest`, reward-redemption intent) and only for its own `childId`. | PARENT_CHILD_MODEL, ARCHITECTURE | authz test: child-scope writes to any non-intent table, or to another child's intent, are rejected |
 
@@ -311,57 +357,53 @@ PHASE 7A adversarial checks so that review can become executable.
 | **AC-1** | quest Q at `PARENT_GUIDED` for child C | C submits a `CompletionRequest` for Q's current instance | `QuestInstance.state = pending`; **no** `LedgerEntry`; no celebration event | §4, INV-10 |
 | **AC-2** | quest Q at `CHILD_OWNED` for C | C submits a `CompletionRequest` | `state = verified`; **exactly one** `earn` `LedgerEntry`; celebration event emitted immediately | §4, INV-10, INV-11 |
 | **AC-3** | `consecutive_ok_count ≥ threshold` for a ChildQuest | time passes with no parent action | `ownership_stage` unchanged; at most one advancement suggestion outstanding | §3, INV-6 (PHASE 7A #11) |
-| **AC-4** | quest Q at `CHILD_OWNED` for C | parent regresses Q to `PARENT_GUIDED` | no `LedgerEntry` delta; no child-visible failure/downgrade event; Q can subsequently advance again | §3, INV-7 (PHASE 7A #12) |
+| **AC-4** | quest Q at `CHILD_OWNED` for C | parent regresses Q to `PARENT_GUIDED` | no `LedgerEntry` delta; no child-visible failure/downgrade event; `consecutive_ok_count` reset to 0; Q can subsequently advance again | §3, INV-7 (PHASE 7A #12) |
 | **AC-5** | a forged child-scope request to write `ownership_stage`, a `LedgerEntry`, or `QuestInstance.state = verified` | it is submitted | the server rejects it | INV-5, INV-10, INV-12, INV-18 (PHASE 7A #6) |
 | **AC-6** | any sequence of `earn`, `redeem`, `adjustment` entries for C | Lifetime Achievement is recomputed after each | it never decreases | INV-13 (PHASE 7A #4) |
 | **AC-7** | quest Q with points `p` | Q is completed once at `PARENT_GUIDED` and once at `CHILD_OWNED` (for the same or comparable child) | both `earn` entries have value `p` | INV-14 (PHASE 7A #13) |
 | **AC-8** | child C with quests across all four stages | any API is queried for C | no response contains a count, percentage, level, or ranking of owned routines | INV-9 (PHASE 7A #4) |
 | **AC-9** | child C | the child-scope "today" / progress endpoints are queried | no response contains `ownership_stage` or a derived stage label / readiness verdict | INV-8 (PHASE 7A #13, #15) |
 | **AC-10** | a `verified` completion for C at `CHILD_PARTICIPATED` | parent creates a `ParentReview`, including a negative one | the completion stays `verified`; celebration already delivered is not reversed; ledger unchanged | INV-15 (PHASE 7A #8) |
-| **AC-11** | quest Q at `PARENT_MANAGED` for C | C attempts to submit a `CompletionRequest` | no child self-mark path exists; only a parent record transitions the instance | §4, INV-18 |
+| **AC-11** | quest Q at `PARENT_MANAGED` for C (a contract-valid stage; not MVP-assignable — [DECISION-019](../governance/DECISION_LOG.md)) | C attempts to submit a `CompletionRequest` | no child self-mark path exists; only a parent record transitions the instance | §4, INV-18 |
 | **AC-12** | a completion event for instance I | it is delivered to the ledger writer twice (retry / replay) | exactly one `earn` `LedgerEntry` results | INV-11 |
+| **AC-13** | quest Q at `PARENT_GUIDED` for C | parent sets Q directly to `CHILD_OWNED` in one action | the transition succeeds; the confirmation names the bypassed `CHILD_PARTICIPATED` stage; `consecutive_ok_count` for (C, Q) is 0; an audit-log entry records the parent as initiator | §3, §5 ([DECISION-017](../governance/DECISION_LOG.md)) |
+| **AC-14** | `consecutive_ok_count = 5` for a ChildQuest at `PARENT_GUIDED` | a scheduled occurrence reaches `expired` uncompleted | `consecutive_ok_count` is still 5 | §4 ([DECISION-018](../governance/DECISION_LOG.md)) |
+| **AC-15** | `consecutive_ok_count = 7` for a ChildQuest | the parent advances, skips, or regresses the stage | `consecutive_ok_count` becomes 0 | §3, §4 (TOQ-2) |
 
-## 10. Technical open questions
+## 10. Technical questions — dispositioned
 
-Not derivable unambiguously from the ratified documents. **Do not invent
-answers.** These are technical, not product, questions — but TOQ-4 references
-a product OQ.
+All nine technical open questions raised by the PHASE 8 reconciliation have
+been dispositioned. Product/governance decisions are cited by their durable id
+([DECISION-017](../governance/DECISION_LOG.md) …
+[DECISION-019](../governance/DECISION_LOG.md)); technical dispositions are
+engineering choices made within the existing contract; "deferred" items are
+out of MVP scope.
 
-- **TOQ-1** — Are `ownership_stage` transitions restricted to adjacent steps
-  (advance/regress by one), or may a parent set any stage directly? The
-  advancement *path* is written sequentially; direct multi-step jumps are
-  neither authorised nor forbidden.
-- **TOQ-2** — Does a stage transition (advance or regress) reset
-  `consecutive_ok_count`?
-- **TOQ-3** — What is the identity of a "completion" for the INV-11 idempotency
-  key? `ARCHITECTURE.md` says "idempotency key = completionId" but no
-  `completion` entity is defined — only `CompletionRequest` and
-  `QuestInstance`.
-- **TOQ-4** — Is `PARENT_MANAGED` an assignable stage in MVP, or
-  modelled-but-not-assignable (every quest starts at `PARENT_GUIDED`)?
-  `OWNERSHIP_MODEL` requires it in the domain model but leaves MVP
-  assignability open. Related to **OQ-A** (unresolved) — do not settle here.
-- **TOQ-5** — Is there any non-parent trigger for an `adjustment` ledger
-  entry, now or planned?
-- **TOQ-6** — Does an `expired` instance (scheduled, not completed) break the
-  `consecutive_ok_count` run, or only a `not_yet`? `OWNERSHIP_MODEL §6` says a
-  skipped *non-scheduled* day is not a break and a `not_yet` is; the
-  `expired` case is unspecified.
-- **TOQ-7** — Persistence model: are `QuestInstance` rows always materialised
-  per `(quest@version, child, date)`, or created lazily on first interaction?
-  Affects `expired` / rollover semantics and how AC checks enumerate
-  instances.
-- **TOQ-8** — The actor matrix (§5) assumes one parent scope per account.
-  Shape of a future second-caregiver / limited-verifier role
-  (`PARENT_CHILD_MODEL` "Multi-parent / caregiver (future)").
-- **TOQ-9** — How does the child's age band produce the **default**
-  `ownership_stage` for a newly assigned quest — through the age-adaptation
-  resolver's output, or a separate server-side derivation?
-  [`QUEST_MODEL`](../game-design/QUEST_MODEL.md) treats "independence level"
-  as an age-adaptation dimension "expressed through `ownership_stage`", while
-  [`ARCHITECTURE`](../product-delivery/ARCHITECTURE.md) lists "independence
-  level" among the `complexityProfile` values delivered to the client. Confirm
-  no stage or level value reaches a child-facing surface (INV-8).
+| TOQ | Question | Disposition | Authority |
+|---|---|---|---|
+| **TOQ-1** | May forward `ownership_stage` movement skip stages? | **Yes.** A parent may set any later stage in one manual action; the confirmation names bypassed stages; the app's automatic suggestion still proposes one stage. (§3, §5, AC-13) | [DECISION-017](../governance/DECISION_LOG.md) |
+| **TOQ-2** | Does a stage transition reset `consecutive_ok_count`? | **Yes** — any transition (advance / skip / regress) resets it to 0. (§3, §4, AC-15) | technical |
+| **TOQ-3** | Idempotency anchor for one-`earn`-per-completion? | The **`QuestInstance` identity `(questId@version, childId, date)`**. (§4, INV-11, AC-12) | technical |
+| **TOQ-4** | Is `PARENT_MANAGED` assignable in MVP? | **No** — MVP starts every quest at `PARENT_GUIDED`; `PARENT_MANAGED` stays in the domain model and contract (§2, §4) but is not assignable or rendered in the MVP UI; a dedicated `PARENT_MANAGED` / ~3–4 experience is post-MVP. | [DECISION-019](../governance/DECISION_LOG.md) (MVP-scope aspect of **OQ-A**) |
+| **TOQ-5** | Non-parent trigger for an `adjustment` ledger entry? | **No** in MVP — written only on explicit parent instruction (additive-only). A future non-parent trigger is a separate decision. (§5, §6) | technical |
+| **TOQ-6** | Does an `expired` occurrence break `consecutive_ok_count`? | **No** — `expired` is neutral (no increment, no reset). Only `completed` increments; only `not_yet` resets. (§4, INV-16, AC-14) | [DECISION-018](../governance/DECISION_LOG.md) |
+| **TOQ-7** | Eager vs lazy `QuestInstance` materialisation? | **Eager** per-day materialisation for MVP; a lazy strategy may be revisited only on scale evidence. A construction choice owned by [`ARCHITECTURE.md`](../product-delivery/ARCHITECTURE.md). | technical (ARCHITECTURE) |
+| **TOQ-8** | Shape of a future multi-caregiver role? | **Out of MVP scope.** Model the account↔parent-identity relationship so it is not costly to extend later. (§5) | deferred (future product scope) |
+| **TOQ-9** | Age band → default `ownership_stage`; does "independence level" reach the child? | Server derives the default stage from the age band at quest assignment and stores it on the `ChildQuest`. The client-facing `complexityProfile` carries only rendering dimensions — never `ownership_stage` or an "independence level" (INV-8). (§3, §7) | technical (INV-8 governs the child-facing half) |
+
+### Relationship to product open questions
+
+[DECISION-019](../governance/DECISION_LOG.md) settled the **MVP-scope aspect
+of OQ-A** (MVP is an on-ramp; MVP quests begin at `PARENT_GUIDED`; a dedicated
+`PARENT_MANAGED` / ~3–4 experience is post-MVP). OQ-A's longer-term
+product-identity question — whether the ~3–4 experience becomes a complete
+product in its own right — **remains open**. **OQ-B … OQ-H are untouched and
+remain open.** This document resolves no product open question beyond the
+MVP-scope aspect of OQ-A that DECISION-019 determined; foundation documents
+([OWNERSHIP_MODEL](../experience/OWNERSHIP_MODEL.md) "Open questions",
+[PRODUCT_VISION §13](../product-foundation/PRODUCT_VISION.md)) still list OQ-A
+as flatly unresolved and are to be reconciled to DECISION-019 in a later
+documentation pass.
 
 ## 11. Relationship to `ARCHITECTURE.md`
 
@@ -385,10 +427,10 @@ there):
 
 `ARCHITECTURE.md` retains: the high-level shape, client construction,
 service/module decomposition, the age-adaptation resolver and notification
-service as modules, persistence *implementation* (an open technical
-question), deployment topology, privacy/security posture, and the technical
-open questions about framework / stack / hosting / real-time transport /
-parent-gate design.
+service as modules, persistence *implementation* (storage engine, schema;
+instance materialisation is eager for MVP — §10 / TOQ-7), deployment topology,
+privacy/security posture, and the construction open questions about
+framework / stack / hosting / real-time transport / parent-gate design.
 
 ## 12. Traceability — ratified decision → this document
 
@@ -410,6 +452,14 @@ parent-gate design.
 | DECISION-014 progressive consistency replaces streaks | §7 (progress views are projections), INV-16 |
 | DECISION-015 Lifetime Achievement vs Spendable Balance | §6 counters, §7 projections, INV-11, INV-13, AC-6/AC-12 |
 | DECISION-016 authority + agency coexist; long-term = gradual transfer | §5 actor matrix, INV-17; ownership transfer changes no Parent-column capability |
+| **DECISION-017** forward stage-skipping allowed | §3 Advance row + bullets, §5 actor matrix, INV-6, AC-13; §10 TOQ-1 |
+| **DECISION-018** `expired` is neutral for `consecutive_ok_count` | §4 counter table, INV-16, AC-14; §10 TOQ-6 |
+| **DECISION-019** MVP is an on-ramp (MVP-scope aspect of OQ-A) | §3 default-stage bullet, §4 (`PARENT_RECORDS` stays valid), §9 AC-11, §10 TOQ-4; `PARENT_MANAGED` retained in §2 |
 
-**Product open questions OQ-A … OQ-H are not resolved by this document.**
-TOQ-4 explicitly defers to OQ-A.
+**Product open questions:** [DECISION-019](../governance/DECISION_LOG.md)
+(a Product Owner decision, not this document) settled the **MVP-scope aspect
+of OQ-A**. OQ-A's long-term product-identity aspect, and **OQ-B … OQ-H**,
+remain open. This document introduces no product decision — it records the
+three approved outcomes ([DECISION-017](../governance/DECISION_LOG.md),
+[DECISION-018](../governance/DECISION_LOG.md),
+[DECISION-019](../governance/DECISION_LOG.md)) and six technical dispositions.

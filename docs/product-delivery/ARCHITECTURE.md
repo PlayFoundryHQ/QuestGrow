@@ -100,8 +100,9 @@ section only records how responsibility is decomposed.
 ### Quest & schedule service
 - Stores quest definitions (parent-authored, arbitrary) and their schedules.
 - Resolves schedules into **quest instances** per child per day
-  ("what's due today"). Whether instances are materialised eagerly or lazily
-  is an open technical question (`TECHNICAL_MODEL` TOQ-7).
+  ("what's due today"). MVP materialises instances **eagerly** per
+  `(quest@version, child, date)`; a lazy strategy may be revisited only on
+  scale evidence (`TECHNICAL_MODEL §10` / TOQ-7).
 - Edits are versioned/forward-applying; historical instances keep the
   definition they were created under.
 
@@ -145,9 +146,9 @@ section only records how responsibility is decomposed.
   client selects component variants from it. No age logic branches scattered
   in the client.
 - Age band also sets the **default** `ownership_stage` for a newly assigned
-  quest. Exactly how that derivation is wired — and whether any
-  stage/"independence level" value belongs in the client-facing
-  `complexityProfile` at all (INV-8) — is `TECHNICAL_MODEL` TOQ-9.
+  quest — a server-side derivation stored on the `ChildQuest`, never part of
+  the client-facing `complexityProfile` (INV-8; `TECHNICAL_MODEL §10` /
+  TOQ-9). In MVP the default is always `PARENT_GUIDED` (`TECHNICAL_MODEL §3`).
 
 ### Notification service
 - Opt-in only. Informational templates ("Mia marked 2 quests"). No
@@ -162,8 +163,9 @@ concepts), with the state machines in §3–§4 and the split between
 authoritative state and projections in §7.
 
 The **persistence implementation** — storage engine, table layout, indexes,
-partitioning, materialisation strategy for `quest_instance` — is an open
-technical question (see below and `TECHNICAL_MODEL` TOQ-3, TOQ-7). It must
+partitioning — is an open construction question (see below). Instance
+materialisation is eager for MVP and idempotency is anchored on the
+`QuestInstance` identity (`TECHNICAL_MODEL §10`, TOQ-7 / TOQ-3). It must
 realise §2–§8 of the technical model without introducing any stored value
 that can drift from an authoritative source (no `balance`,
 `verification_required`, `independence_level`, `owned_routine_count`, or
@@ -198,16 +200,16 @@ custom art pipeline; parent-side analytics beyond daily/weekly projections.
 
 ## Open questions
 
-Technical (construction) questions. Contract-level open points are
-`TECHNICAL_MODEL` TOQ-1 … TOQ-8.
+Construction questions only. The contract-level questions (TOQ-1 … TOQ-9) are
+all dispositioned in `TECHNICAL_MODEL §10`.
 
 - Client framework (RN / Flutter / native) — decide against team skills +
   animation quality needs.
 - Backend stack and hosting — decide against team skills; keep the service
   boundaries above regardless.
-- **Persistence implementation** — storage engine, schema, and whether
-  `quest_instance` rows are materialised eagerly or lazily
-  (`TECHNICAL_MODEL` TOQ-7).
+- **Persistence implementation** — storage engine, schema, indexes,
+  partitioning. (Instance materialisation strategy is eager for MVP —
+  `TECHNICAL_MODEL §10` / TOQ-7.)
 - Real-time delivery of `completion.verified` to a co-present child (push vs
   poll vs socket) — MVP can poll on app foreground.
 - Exact parent-gate challenge design for the 3–8 context (adult friction that

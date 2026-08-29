@@ -387,6 +387,105 @@ it.
   [PARENT_CHILD_MODEL → roles](../trust-and-safety/PARENT_CHILD_MODEL.md)
 - **Related GitHub issues:** #17, #1, #2
 
+### DECISION-017 — Ownership advancement may skip stages in a single manual action
+
+- **Status:** Accepted
+- **Date:** 2026-08-29
+- **Decision:** A parent may set a quest's `ownership_stage` to any later value
+  in a single manual action; advancing by more than one stage at once is
+  permitted. When more than one stage is bypassed, the confirmation names the
+  bypassed stage(s). The app's automatic advancement *suggestion* still
+  proposes exactly one stage at a time (DECISION-008). Regression to any
+  earlier stage remains permitted (DECISION-010).
+- **Why:** DECISION-016 gives the parent authority over "the pace of
+  handover," and pace includes "immediately." Forbidding a parent from
+  recording trust they already hold constrains parental authority for no
+  developmental gain, and it is asymmetric with the already-free entry stage
+  at assignment and the already-free any-to-any regression. The
+  `CHILD_PARTICIPATED` review is optional (DECISION-006), so skipping it
+  removes an option, not a safeguard; a premature grant is fully recoverable
+  through neutral regression (DECISION-010).
+- **Consequences:** The ownership-stage service accepts any `(from, to)`
+  transition within parent scope, audit-logged, with `consecutive_ok_count`
+  reset on every transition. Multi-stage advancement is a manual parent action
+  only — never produced by the suggestion mechanism, never autonomous. The
+  confirmation UI must name bypassed stages. Encoded in
+  [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md) §3, §5, INV-6, AC-13,
+  §10 (TOQ-1).
+- **Related principles:** #4, #13, #16, #20
+- **Affected documents:**
+  [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md);
+  [OWNERSHIP_MODEL §6](../experience/OWNERSHIP_MODEL.md) — compatible today
+  ("advance earlier manually"); a later pass may make the multi-stage case
+  explicit.
+- **Related GitHub issues:** #17
+
+### DECISION-018 — Expired scheduled occurrences are neutral for `consecutive_ok_count`
+
+- **Status:** Accepted
+- **Date:** 2026-08-29
+- **Decision:** A scheduled `QuestInstance` that reaches `expired` without
+  completion neither increments nor resets the internal
+  `consecutive_ok_count`. Only a `completed` occurrence increments it; only a
+  parent `not_yet` resets it to zero (DECISION-009); a non-scheduled day has
+  no effect; any `ownership_stage` transition resets it. The counter remains
+  internal and is never surfaced or framed as a streak (DECISION-013).
+- **Why:** DECISION-013 states there is "no counter that resets or 'breaks'
+  when a scheduled occurrence is missed," and DECISION-014 calls a missed
+  scheduled day "a neutral non-event." Treating `expired` as a reset or a
+  decrement would make the internal counter *behave* as exactly the
+  streak-on-miss mechanic those decisions prohibit. The residual
+  signal-accuracy concern (the app may suggest advancing a
+  somewhat-unreliable routine) is covered by the parent always deciding
+  (DECISION-008) and by free neutral regression if the trust proves premature
+  (DECISION-010).
+- **Consequences:** The advancement suggestion can fire after a window that
+  includes missed days, provided there are `threshold` completed occurrences
+  with no `not_yet` between them. Encoded in
+  [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md) §4, INV-16, AC-14,
+  §10 (TOQ-6).
+- **Related principles:** #9, #12, #13
+- **Affected documents:**
+  [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md);
+  [OWNERSHIP_MODEL §6](../experience/OWNERSHIP_MODEL.md) — its "8 consecutive …
+  *completed*" wording leans the other way and should be reconciled to this
+  decision in a later pass.
+- **Related GitHub issues:** #17
+
+### DECISION-019 — MVP is an on-ramp; `PARENT_MANAGED` is domain-valid but not MVP-assignable
+
+- **Status:** Accepted
+- **Date:** 2026-08-29
+- **Decision:** For the MVP, QuestGrow is an **on-ramp** rather than a
+  dedicated ~3–4-year-old experience. Every MVP quest begins at
+  `PARENT_GUIDED`. `PARENT_MANAGED` remains a valid part of the domain model
+  and the technical contract (its `PARENT_RECORDS` completion behaviour is
+  defined) but is **not assignable or rendered through the MVP UI**. A
+  dedicated `PARENT_MANAGED` / ~3–4 experience is post-MVP.
+- **Why:** Building the `PARENT_MANAGED` surface (a parent-records flow and a
+  distinct child-side "parent runs this" mode) is meaningful additional MVP
+  scope whose value depends on whether ~3–4 is a first-class target.
+  Deferring it keeps the MVP focused on the core `PARENT_GUIDED →
+  CHILD_PARTICIPATED → CHILD_OWNED` loop while preserving the full four-stage
+  contract for later.
+- **Consequences:** This resolves the **MVP-scope aspect of OQ-A**. OQ-A's
+  longer-term product-identity question — whether the ~3–4 experience becomes
+  a complete product in its own right — **remains open**. OQ-B … OQ-H are
+  untouched and remain open. The age-band → default-stage derivation still
+  exists in the contract but yields `PARENT_GUIDED` for every MVP quest.
+  Encoded in [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md) §3, §4,
+  §9 (AC-11), §10 (TOQ-4), §12.
+- **Related principles:** #16, #18, #20
+- **Affected documents:**
+  [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md),
+  [MVP](../product-delivery/MVP.md) (already lists a dedicated `PARENT_MANAGED`
+  UI as out of scope);
+  [OWNERSHIP_MODEL "Open questions"](../experience/OWNERSHIP_MODEL.md) and
+  [PRODUCT_VISION §13](../product-foundation/PRODUCT_VISION.md) — both still
+  list OQ-A as flatly unresolved and must be reconciled to this decision in a
+  later pass.
+- **Related GitHub issues:** #17, #7
+
 ---
 
 ## Reserved for future entries
