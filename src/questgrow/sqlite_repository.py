@@ -180,7 +180,9 @@ def _iso(v) -> str | None:
 
 class SqliteRepository:
     def __init__(self, path: str = ":memory:") -> None:
-        self._db = sqlite3.connect(path)
+        # check_same_thread=False: the ASGI server may touch the repo from a
+        # worker thread. Access is serialised by the single-writer service.
+        self._db = sqlite3.connect(path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
         self._db.commit()
