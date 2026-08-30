@@ -4,8 +4,14 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 private val FA = Locale("fa")
@@ -16,16 +22,26 @@ private val FA = Locale("fa")
  * engines (e.g. a dedicated Persian engine like AvaCore) and keeps the first
  * that accepts `fa`. Degrades silently — [hasVoice] is false and callers keep
  * the visible label.
+ *
+ * The `TextToSpeech` binding is built off the main thread ([connect], driven by
+ * a `LaunchedEffect`) so a slow/absent TTS service never stalls the board.
+ * [hasVoice] is Compose-observable so the "بشنو" button appears once ready.
  */
 class Narrator(private val appContext: Context) {
 
     private var tts: TextToSpeech? = null
-    @Volatile var hasVoice: Boolean = false
+    var hasVoice: Boolean by mutableStateOf(false)
         private set
 
     private val enginesToTry = ArrayDeque<String?>()
+    @Volatile private var started = false
 
-    init { start(null) }
+    /** Build the TTS binding. Safe to call more than once; call off the UI thread. */
+    fun connect() {
+        if (started) return
+        started = true
+        start(null)
+    }
 
     private fun start(engine: String?) {
         runCatching { tts?.shutdown() }
@@ -35,7 +51,6 @@ class Narrator(private val appContext: Context) {
                 hasVoice = true
                 tts?.language = FA
             } else {
-                // queue the remaining engines on first failure, then advance
                 if (enginesToTry.isEmpty() && engine == null) {
                     runCatching {
                         tts?.engines?.map { it.name }?.forEach { if (it != null) enginesToTry.addLast(it) }
@@ -71,6 +86,7 @@ class Narrator(private val appContext: Context) {
 fun rememberNarrator(): Narrator {
     val context = LocalContext.current.applicationContext
     val narrator = remember { Narrator(context) }
+    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { narrator.connect() } }
     DisposableEffect(Unit) { onDispose { narrator.shutdown() } }
     return narrator
 }

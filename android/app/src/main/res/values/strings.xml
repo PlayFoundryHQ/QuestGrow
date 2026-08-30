@@ -51,9 +51,6 @@
     <string name="signin_sub">با ایمیل، رمز عبور و رمز والد وارد شو.</string>
     <string name="signin_unlock">باز کردن در والد</string>
     <string name="signin_wrong">ایمیل، رمز عبور یا رمز والد اشتباه است — یا تلاش زیاد بوده.</string>
-    <string name="onb_pick_child_title">این دستگاه برای کدام کودک است؟</string>
-    <string name="onb_pick_child_sub">تختهٔ همین کودک روی این گوشی نشان داده می‌شود. بعداً می‌توانی بین کودکان جابه‌جا شوی.</string>
-    <string name="onb_add_child">افزودن کودک تازه</string>
 
     <!-- kid board -->
     <string name="kid_all_done">آفرین! همهٔ کارهای امروز تمام شد 🌟</string>
@@ -86,7 +83,7 @@
     <string name="nav_routines_sub">کارهای روزانهٔ کودک</string>
     <string name="nav_rewards_sub">جایزه‌ها و هزینهٔ ستاره‌ای</string>
     <string name="nav_ownership_sub">میزان کمک برای هر کار</string>
-    <string name="nav_children_sub">افزودن کودک، فعال‌سازی روی دستگاه</string>
+    <string name="nav_children_sub">افزودن و دیدن کودکان</string>
     <string name="nav_settings_sub">اعلان‌ها، کد کودک، سرور</string>
     <string name="parent_family">کودکان</string>
     <string name="parent_all_caught_up">همه‌چیز به‌روز است ✓</string>
@@ -118,12 +115,9 @@
     <string name="parent_redeem_declined">رد شد — بدون جریمه.</string>
     <string name="parent_redeem_granted">جایزه داده شد 🎉</string>
 
-    <!-- parent: activate a child on this device -->
-    <string name="children_on_this_device">روی این دستگاه</string>
-    <string name="children_activate">فعال کردن روی این دستگاه</string>
-    <string name="children_activated">فعال است ✓ — حذف</string>
-    <string name="children_activate_help">تختهٔ این کودک روی همین گوشی نشان داده می‌شود و می‌توانی بین کودکان جابه‌جا شوی.</string>
-    <string name="children_activated_msg">%1$s روی این دستگاه فعال شد.</string>
+    <!-- parent: children on the shared family device -->
+    <string name="children_all_on_device">همهٔ کودکان روی تختهٔ همین گوشی هستند — با نوار بالای تخته بین‌شان جابه‌جا می‌شوی.</string>
+    <string name="children_own_device_hint">اگر کودکی گوشی جدا دارد، در تنظیمات یک «کد ورود کودک» بساز و آنجا وارد کن.</string>
     <string name="kid_this_week">این هفته</string>
     <string name="err_offline_child">آفلاینی. کد بزرگترت کمک می‌کند وقتی دوباره وصل شدی کارهایت را انجام بدهی.</string>
 

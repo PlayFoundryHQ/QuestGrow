@@ -98,21 +98,34 @@ class AuthRepository(
 
     suspend fun useChildToken(token: String) = tokens.setChildToken(token.trim())
 
-    /**
-     * Family device: mint a child token for [childId] and keep it on this
-     * device so the kid board can switch to that child. Requires the parent
-     * gate to be open.
-     */
-    suspend fun activateChildOnDevice(childId: String, name: String): ApiResult<Unit> =
-        when (val r = issueChildToken(childId)) {
-            is ApiResult.Ok -> { tokens.putChildToken(childId, name, r.value); ApiResult.Ok(Unit) }
-            is ApiResult.Failure -> r
-            is ApiResult.Offline -> r
-        }
-
-    suspend fun deactivateChildOnDevice(childId: String) = tokens.removeChildToken(childId)
-
     suspend fun switchActiveChild(childId: String) = tokens.setActiveChild(childId)
+
+    /**
+     * Family (shared) device: every child on the account belongs on the kid
+     * board's switcher — no per-child "activate" step. Mints a token for any
+     * child that lacks one and drops tokens for children removed from the
+     * account. Requires an active parent scope; a paired kid-only device
+     * (no stored account) no-ops. Returns the child count on the device.
+     */
+    suspend fun syncFamilyChildren(): Int {
+        if (tokens.accountEmailBlocking() == null) return tokens.deviceChildrenBlocking().size
+        val kids = when (val r = apiCall { api.listChildren() }) {
+            is ApiResult.Ok -> r.value
+            else -> return tokens.deviceChildrenBlocking().size
+        }
+        val have = tokens.deviceChildrenBlocking().map { it.first }.toSet()
+        val want = kids.associateBy { it.childId }
+        for (k in kids) if (k.childId !in have) {
+            (issueChildToken(k.childId) as? ApiResult.Ok)?.let {
+                tokens.putChildToken(k.childId, k.name, it.value, makeActive = false)
+            }
+        }
+        for (id in have - want.keys) tokens.removeChildToken(id)
+        if (tokens.activeChildIdBlocking().let { it == null || it !in want }) {
+            kids.firstOrNull()?.let { tokens.setActiveChild(it.childId) }
+        }
+        return tokens.deviceChildrenBlocking().size
+    }
 
     fun childrenOnDevice(): List<hq.playfoundry.questgrow.data.model.DeviceChild> =
         tokens.deviceChildrenBlocking().map {

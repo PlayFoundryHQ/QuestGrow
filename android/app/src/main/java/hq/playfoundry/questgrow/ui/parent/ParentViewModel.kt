@@ -36,8 +36,6 @@ data class ParentState(
     val approvals: Loadable<List<Approval>> = Loadable.Idle,
     val suggestions: Loadable<List<AdvancementSuggestion>> = Loadable.Idle,
     val redemptions: Loadable<List<PendingRedemption>> = Loadable.Idle,
-    /** child ids that have a token on THIS device (their board can be shown here). */
-    val deviceChildIds: Set<String> = emptySet(),
     val lastChildCode: String? = null,
 ) {
     val children: List<ChildProfile> get() = family.valueOrNull?.map { it.child } ?: emptyList()
@@ -47,10 +45,7 @@ data class ParentState(
 class ParentViewModel(private val container: AppContainer) : ViewModel() {
     // the parent gate (PIN pad) has already unlocked before this VM is shown
     private val _state = MutableStateFlow(
-        ParentState(
-            signedIn = container.tokenStore.parentTokenBlocking() != null,
-            deviceChildIds = container.authRepo.childrenOnDevice().map { it.childId }.toSet(),
-        ),
+        ParentState(signedIn = container.tokenStore.parentTokenBlocking() != null),
     )
     val state: StateFlow<ParentState> = _state
     private val repo get() = container.parentRepo
@@ -102,6 +97,9 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
             val r = repo.children()
             set { it.copy(family = r.toLoadable { kids -> kids.map { ChildDashboard(it, null) } }) }
             (r as? ApiResult.Ok)?.value?.forEach { loadDashboard(it.childId) }
+            // this is the family device — keep the kid board's switcher in sync
+            // with the account (every child, no per-device "activate" step).
+            container.authRepo.syncFamilyChildren()
         }
     }
 
@@ -117,7 +115,7 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun addChild(childId: String, name: String, ageBand: String) = viewModelScope.launch {
-        action(repo.addChild(childId, name, ageBand)) { msg("کودک اضافه شد."); refreshFamily() }
+        action(repo.addChild(childId, name, ageBand)) { msg("کودک اضافه شد — روی تختهٔ کودک هم هست."); refreshFamily() }
     }
 
     fun editChild(id: String, name: String?, ageBand: String?, birthdate: String?, overrides: Map<String, String>?) =
@@ -171,17 +169,6 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
         action(repo.declineRedemption(id)) { msg("رد شد — بدون جریمه."); loadRedemptions() }
     }
 
-    // ---- activate a child on this device ----
-    fun activateChildHere(childId: String, name: String) = viewModelScope.launch {
-        action(container.authRepo.activateChildOnDevice(childId, name)) {
-            set { it.copy(deviceChildIds = container.authRepo.childrenOnDevice().map { c -> c.childId }.toSet()) }
-            msg("$name روی این دستگاه فعال شد.")
-        }
-    }
-    fun deactivateChildHere(childId: String) = viewModelScope.launch {
-        container.authRepo.deactivateChildOnDevice(childId)
-        set { it.copy(deviceChildIds = container.authRepo.childrenOnDevice().map { c -> c.childId }.toSet()) }
-    }
 
     // ---- approvals ----
     fun loadApprovals(childId: String) {

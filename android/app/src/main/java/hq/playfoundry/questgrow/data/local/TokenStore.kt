@@ -47,8 +47,11 @@ interface TokenStore {
     fun defaultChildIdBlocking(): String?
     fun defaultChildNameBlocking(): String?
 
-    /** Add / replace a child's token on this device and make it the active board. */
-    suspend fun putChildToken(id: String, name: String, token: String)
+    /**
+     * Add / replace a child's token on this device. [makeActive] switches the
+     * board to this child (true for an explicit choice; false for a bulk sync).
+     */
+    suspend fun putChildToken(id: String, name: String, token: String, makeActive: Boolean = true)
     /** Switch which activated child the board shows. No-op if [id] isn't on the device. */
     suspend fun setActiveChild(id: String)
     /** Remove one child from this device (its token + name). */
@@ -148,11 +151,11 @@ class DataStoreTokenStore(private val context: Context) : TokenStore {
         persistKids()
     }
 
-    override suspend fun putChildToken(id: String, name: String, token: String) {
+    override suspend fun putChildToken(id: String, name: String, token: String, makeActive: Boolean) {
         ensureLoaded()
         kids.tokens[id] = token
         kids.names[id] = name
-        kids.active = id
+        if (makeActive || kids.active == null) kids.active = id
         kids.legacy = null
         persistKids()
     }

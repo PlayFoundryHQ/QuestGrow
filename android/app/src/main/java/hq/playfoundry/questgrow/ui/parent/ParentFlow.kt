@@ -367,22 +367,17 @@ private fun Children(vm: ParentViewModel, s: ParentState) {
     var name by remember { mutableStateOf("") }
     var band by remember { mutableStateOf("5-6") }
 
-    SectionHeader(stringResource(R.string.children_on_this_device))
-    HintText(stringResource(R.string.children_activate_help))
+    SectionHeader(stringResource(R.string.parent_family))
+    HintText(stringResource(R.string.children_all_on_device))
     s.children.forEach { c ->
-        val here = c.childId in s.deviceChildIds
         Card {
-            Row(Modifier.fillMaxWidth().padding(Space.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Avatar(c.name, selected = here, size = 40.dp)
+            Row(Modifier.fillMaxWidth().padding(Space.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+                Avatar(c.name, size = 40.dp)
                 Text("${c.name}  (${c.ageBand})", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                if (here) {
-                    GhostButton(stringResource(R.string.children_activated)) { vm.deactivateChildHere(c.childId) }
-                } else {
-                    SecondaryButton(stringResource(R.string.children_activate)) { vm.activateChildHere(c.childId, c.name) }
-                }
             }
         }
     }
+    HintText(stringResource(R.string.children_own_device_hint))
     HorizontalDivider(Modifier.padding(vertical = Space.sm))
     Text(stringResource(R.string.children_add_title), style = MaterialTheme.typography.titleMedium)
     Field(stringResource(R.string.onb_child_name), name, { name = it })
