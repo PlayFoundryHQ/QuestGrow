@@ -2,7 +2,7 @@
 
 A native Android **client** of the QuestGrow backend. It consumes the
 established `/v1` API and domain contracts (`docs/architecture/TECHNICAL_MODEL.md`,
-`DECISION-001…020`, `INV-1…18`, `docs/experience/UX_PRINCIPLES.md`). It does
+`DECISION-001…021`, `INV-1…18`, `docs/experience/UX_PRINCIPLES.md`). It does
 **not** re-implement QuestGrow's product model — the server stays authoritative
 for identity, `complexityProfile`, ownership stage, verification, rewards,
 balances and approvals.
@@ -11,36 +11,43 @@ balances and approvals.
 UI is Farsi, right-to-left, Persian digits (۰۱۲۳…), Vazirmatn font, tap-to-hear
 narration in Persian. The app forces `fa` regardless of device locale.
 
-## Shape ([[client-redesign]] — Phase L)
+> **Current state:** [`../docs/PROJECT_STATE.md`](../docs/PROJECT_STATE.md) is
+> the canonical, up-to-date description of the app, the backend, and the
+> deployment. The section below is the shape; details there.
+
+## Shape (Phase L → v0.6.3)
 
 - **Kid-first.** The app opens **straight to the kid's board** — no chooser,
   no login on the family device (`CHILD_JOURNEY` "lands directly on Today").
-  Big illustrated cards, one tap → picture + «بشنو» / «انجام دادم» → calm
-  "منتظر بزرگترت" or an instant celebration.
-- **Parent gate.** A small, low-emphasis "بزرگترها ›" text button in the
-  board's top corner → a 4-digit **PIN pad** (the PIN is the real barrier;
-  a hidden long-press was undiscoverable). Email + password are set once at signup and
-  stored on the device (`TokenStore`) so the everyday gate is PIN-only; the
-  client replays login+unlock behind it.
-- **Parent home** = each child's day in a line + the **approvals inbox** front
-  and centre (a card per pending completion, «تأیید» / «هنوز نه», «تأیید
-  همه»), and the **reward-redemption inbox** («… می‌خواهد … را بگیرد»,
-  «بله، بده» / «الان نه»). Setup (routines / rewards / ownership / children /
-  settings) is a second layer.
-- **Several children on one device.** The parent turns each child on in
-  **Children → «فعال کردن روی این دستگاه»**; the kid board then shows an avatar
-  row to switch between them (`TokenStore` keeps a token per child).
+  A greeting header, a 2-column grid of big illustrated cards; one tap →
+  picture + «بشنو» / «انجام دادم» → calm "منتظر بزرگترت" or an instant
+  celebration.
+- **Parent gate.** A small "بزرگترها ›" pill in the board header → a 4-digit
+  **PIN pad**. Email + password are set once at signup and stored on the
+  device (`TokenStore`) so the everyday gate is PIN-only; the client replays
+  login+unlock behind it. A returning parent on a wiped device signs back in
+  via **«قبلاً حساب دارم»** in onboarding (v0.6.1).
+- **Parent home** is a **card hub** (v0.6): a per-child glance (avatar +
+  progress), the two inboxes with count badges — **approvals** («تأیید» /
+  «هنوز نه» / «تأیید همه») and **reward redemptions** («بله، بده» / «الان
+  نه») — and a 2-col **تنظیم و مدیریت** grid (routines / rewards / ownership /
+  children / settings).
+- **Several children on one shared phone.** On the family device (the one
+  with a stored account) **every child on the account appears on the kid
+  board's avatar switcher automatically** — no per-child "activate" step
+  (v0.6.2). `AuthRepository.syncFamilyChildren()` keeps `TokenStore`'s
+  per-child token map in sync with the account on every parent-area refresh.
 - **The kid spends points in-app.** A **جایزه‌ها** screen shows the child's
   balance and the reward catalogue; «می‌خواهمش» submits a redemption —
   self-service rewards celebrate immediately, `parent_confirmed` ones land in
   the parent's inbox. Backend: `GET /v1/me/rewards`, `GET /v1/redemptions`
   (both additive, read-only).
-- **First run** = 3 guided screens (account+PIN → add child → pick routine
-  cards; auto-assigns + materialises).
+- **First run** = a 4-step stepper (who → account+PIN → add child → pick
+  routine cards; auto-assigns + materialises), plus the sign-in and the
+  child-device-pairing branches.
 - **A kid's own device** pairs with a **6-digit code** the parent generates in
   Settings (backend: `POST /v1/auth/pairing-code` → `POST /v1/auth/pair`,
-  additive, single-use, 15-min TTL). The raw child token never touches a
-  human.
+  single-use, 15-min TTL). That device holds one child token and no account.
 
 ## Design system (v0.6)
 
@@ -158,7 +165,18 @@ targeting a Persian voice (`Narrator` walks installed engines, e.g. AvaCore;
 "بشنو" is hidden when there is no `fa` voice); `audio_narration: "always"`
 auto-read; reduced-motion honoured; large readable type; RTL throughout.
 
-**Visually verified** (`google_apis` emulator under Xvfb):
+> **TTS (v0.6.3):** the manifest now declares `<queries>` for
+> `android.intent.action.TTS_SERVICE` (+ an explicit `<package>` for
+> `com.github.opscalehub.avacore`) — required on Android 11+ to bind a
+> separate-app engine; without it every `TextToSpeech` init failed and "بشنو"
+> stayed silent. Parent **Settings → صدای فارسی** shows the resolved engine
+> status + an «امتحان صدا» test button. Audible output with AvaCore on a real
+> device is **NOT VERIFIED** (AvaCore is not on the emulator).
+
+**Visually verified** — the Cycle 2 / Cycle 3 notes below are from the
+pre-Persian Phase-J client and are **historical**. The current
+verification matrix is [`../docs/PROJECT_STATE.md` §7](../docs/PROJECT_STATE.md#7-test--verification-matrix).
+Historical (`google_apis` emulator under Xvfb):
 - *Cycle 2* — child chooser / code-entry / Today / Do-it / celebration /
   progress and parent sign-in / dashboard / approvals.
 - *Cycle 3* — parent Family / Quests / Rewards / Ownership / Settings tabs,
@@ -215,6 +233,15 @@ device UI. Font scale 1.5×/2.0× is covered on the emulator.
   resolved" → dropped, not surfaced as an error (INV-11). Verified end to end
   on device (debug): offline "I did it" → queued → reconnect → synced →
   appears in the parent approvals queue.
+
+> **Known gap (multi-child):** `ReadCache` and `OfflineQueue` are **single-slot
+> and not scoped by `child_id`** — a design carried over from Phase G–J when a
+> device held one child. On the family device (multi-child since v0.5.0),
+> switching children *while offline* shows the previous child's cached board
+> (flagged "stale", but the payload is the other child's), and a completion
+> queued for one child then flushed after switching the active child replays
+> against the wrong child's token. Online — the normal case — is unaffected.
+> Tracked in [`../docs/PROJECT_STATE.md` §10 CRACK-1](../docs/PROJECT_STATE.md#10-cracks--gaps).
 
 ## Release engineering
 

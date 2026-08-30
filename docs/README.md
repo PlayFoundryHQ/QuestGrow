@@ -6,6 +6,11 @@ design, trust model, and architecture decisions.
 **Read first:** [`product-foundation/MANIFESTO.md`](./product-foundation/MANIFESTO.md),
 then [`product-foundation/CORE_PRINCIPLES.md`](./product-foundation/CORE_PRINCIPLES.md).
 
+> **For the current, as-built state** of the app, backend, deployment, tests,
+> identity model, and known gaps — see **[`PROJECT_STATE.md`](./PROJECT_STATE.md)**.
+> The documents in this folder define the *intended* product and its frozen
+> decisions; `PROJECT_STATE.md` reconciles them against the shipped code.
+
 ## Document map
 
 ```
@@ -43,17 +48,24 @@ docs/
 │   ├── TECHNICAL_MODEL.md      Domain concepts, state machines, authority matrix, INV-1…18, AC-1…15, TOQ dispositions
 │   └── IMPLEMENTATION_NOTES.md Code → contract map; implementation-level notes (IL-*)
 │
-└── governance/             FROZEN DECISIONS + THE OPERATING CONSTITUTION
-    ├── DECISION_LOG.md         DECISION-001 … DECISION-019 + reserved
-    └── LEADERSHIP_PROTOCOL.md  Autonomous Engineering Leadership & Supervised Execution — authority boundary, source-of-truth tiers, phase loop, escalation/stop conditions
+├── governance/             FROZEN DECISIONS + THE OPERATING CONSTITUTION
+│   ├── DECISION_LOG.md         DECISION-001 … DECISION-021 + reserved
+│   └── LEADERSHIP_PROTOCOL.md  Autonomous Engineering Leadership & Supervised Execution — authority boundary, source-of-truth tiers, phase loop, escalation/stop conditions
+│
+└── PROJECT_STATE.md        CURRENT as-built state (release, architecture, deployment, identity model, test matrix, cracks) — reconciles the above against the shipped code
 ```
 
 **MVP status.** Layer 0 is complete through **D1** (end-to-end MVP acceptance)
 — see [`product-delivery/D1_ACCEPTANCE.md`](./product-delivery/D1_ACCEPTANCE.md).
-Phase E (readiness), Phase F (production-foundation hardening — portable
-SQLite/Postgres persistence, migrations, durable auth/events, `/v1` API) and
-Phase G (native Android client — [`../android/`](../android/README.md)) have
-shipped. Each phase is a Product-Owner grant per
+Phase E (readiness), Phase F (production-foundation hardening), the native
+**Android client** (Phases G–J), **deployment** to `questgrow.opscale.ir`
+(Phase K), the **Persian/RTL kid-first rewrite** (Phase L, DECISION-020), the
+**multi-child family device + in-app rewards** (Phase M, DECISION-021), and the
+**v0.6 UI/UX design pass** (with sign-in recovery, shared-phone auto-sync, and
+TTS engine-visibility fixes through v0.6.3) have all shipped. The current
+as-built state — including what is *deployed* vs merely *released*, the test
+matrix, and open gaps — is in [`PROJECT_STATE.md`](./PROJECT_STATE.md). Each
+phase is a Product-Owner grant per
 [`governance/LEADERSHIP_PROTOCOL.md`](./governance/LEADERSHIP_PROTOCOL.md).
 
 **Implementation.** `src/questgrow/` is the MVP domain, written strictly
@@ -74,7 +86,7 @@ INV-1…18 suites. See `architecture/IMPLEMENTATION_NOTES.md`.
    obey — domain, state machines, invariants, acceptance criteria — sitting
    between the ownership model and `product-delivery/ARCHITECTURE.md`.
 5. **Governance** (`governance/`) holds the frozen record of durable decisions
-   (`DECISION_LOG.md`, DECISION-001 … DECISION-019) and the
+   (`DECISION_LOG.md`, DECISION-001 … DECISION-021) and the
    [Leadership Protocol](./governance/LEADERSHIP_PROTOCOL.md) — the ratified
    constitution under which an autonomous leadership agent may execute the
    MVP-readiness arc (through D1) without per-action approval, while product

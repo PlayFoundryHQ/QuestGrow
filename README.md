@@ -20,7 +20,8 @@ clients** served by the backend, and the **native Android client**
 | `src/questgrow/webclient/` | Reference child + parent web clients (`/app/child`, `/app/parent`). |
 | `android/` | Native Android client — see [`android/README.md`](android/README.md). |
 | `tests/` | `pytest` — stdlib domain suite + FastAPI/httpx integration suite. |
-| `Dockerfile`, `scripts/`, `k8s/` | Container image, local release tooling, and the Helm/ArgoCD deploy for `questgrow.opscale.ir`. |
+| `Dockerfile`, `scripts/`, `deploy/` | Container image, local release tooling (`test.sh`, `release.sh`), and the Helm chart deployed via ArgoCD to `questgrow.opscale.ir`. |
+| `docs/PROJECT_STATE.md` | **Canonical current state** — release, architecture, deployment, identity model, test matrix, known gaps. Start here for "what is this today". |
 
 ## Run the backend
 
@@ -36,13 +37,21 @@ Migrations run automatically on startup.
 
 ## Release & deploy
 
-Local build → GHCR → git tag → GitHub Release; the backend deploys to a
-Kubernetes cluster via Helm + ArgoCD, the signed Android APK ships as a
-GitHub Release asset. See `scripts/release.sh` and `k8s/`.
+Local build → GHCR → git tag → GitHub Release; the backend deploys to the
+`nuc-lab` Kubernetes cluster via the `deploy/questgrow/` Helm chart + ArgoCD
+(the ArgoCD `Application` lives in `OpScaleLab/nuc-lab-operation`); the signed
+Android APK ships as a GitHub Release asset. See `scripts/release.sh`,
+`deploy/README.md`, and [`docs/PROJECT_STATE.md` §5](docs/PROJECT_STATE.md).
 
 ## Status
 
-MVP complete and verified end-to-end (domain → API → both clients →
-emulator + physical-device). Auth is deliberately simple: email/password +
-a numeric parent PIN, no OIDC, no refresh token. Post-MVP direction is in
+**Shipped through `v0.6.3`.** MVP complete and verified end-to-end; the native
+Android client (Persian/RTL, kid-first, multi-child on a shared phone,
+in-app rewards, TTS narration) is the product surface; the backend is
+**deployed and live** at `https://questgrow.opscale.ir`. Auth is deliberately
+simple: email/password + a numeric parent PIN, no OIDC, no refresh token.
+
+The **authoritative current-state description** — what is deployed vs merely
+released, the test matrix, the identity model, and open gaps — is
+[`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md). Post-MVP direction is in
 [`docs/product-delivery/ROADMAP.md`](docs/product-delivery/ROADMAP.md).

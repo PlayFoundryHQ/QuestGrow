@@ -12,8 +12,10 @@ CREATE TABLE IF NOT EXISTS auth_account (
     created_at TEXT NOT NULL
 );
 
--- opaque tokens: kind ∈ {session, parent, child}. expires_at NULL = no expiry
--- (child tokens). A session token is deliberately not a scope (resolve → None).
+-- opaque tokens: kind ∈ {session, parent, child, pair}. expires_at NULL = no
+-- expiry (child tokens). A session token is deliberately not a scope
+-- (resolve → None); a `pair` token (added later, for 6-digit device pairing —
+-- single-use, 15-min TTL) is likewise not a scope.
 CREATE TABLE IF NOT EXISTS auth_token (
     token TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
