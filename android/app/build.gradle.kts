@@ -56,10 +56,10 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // real signing when configured, else debug key (buildable without secrets)
             signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
-            // must be overridden by the operator (Settings) or a build arg.
+            // the live backend; still overridable in-app (Settings) or via QG_BACKEND_URL
             buildConfigField(
                 "String", "DEFAULT_BASE_URL",
-                "\"" + (System.getenv("QG_BACKEND_URL") ?: "https://questgrow.example/") + "\"",
+                "\"" + (System.getenv("QG_BACKEND_URL") ?: "https://questgrow.opscale.ir/") + "\"",
             )
         }
     }

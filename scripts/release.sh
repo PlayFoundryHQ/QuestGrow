@@ -76,9 +76,16 @@ docker rm -f qg-relcheck >/dev/null
 apk=""
 if (( with_apk )); then
   say "android release APK"
-  QG_VERSION_NAME="$ver" android/gradlew -p android :app:assembleRelease -q
+  IFS=. read -r vmaj vmin vpat <<<"$ver"
+  vcode=$(( vmaj*10000 + vmin*100 + vpat ))   # 0.3.3 → 303, monotonic per semver
+  QG_VERSION_NAME="$ver" QG_VERSION_CODE="$vcode" \
+    android/gradlew -p android :app:assembleRelease -q
   apk="android/app/build/outputs/apk/release/app-release.apk"
   [[ -f "$apk" ]] || { echo "APK not produced"; exit 1; }
+  # fail loud if it silently fell back to the debug key
+  bt=$(ls -d "$HOME"/Android/Sdk/build-tools/* | sort -V | tail -1)
+  "$bt/apksigner" verify --print-certs "$apk" | grep -q "CN=QuestGrow" \
+    || { echo "APK is not signed with the QuestGrow upload key (keystore.properties missing?)"; exit 1; }
 fi
 
 if (( dry )); then

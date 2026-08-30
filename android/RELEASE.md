@@ -5,7 +5,7 @@
 | Variant | `applicationId` | Backend default | Minify | Signing |
 |---|---|---|---|---|
 | **debug** | `hq.playfoundry.questgrow.debug` | `http://10.0.2.2:8000/` (emulator host) | off | debug keystore |
-| **release** | `hq.playfoundry.questgrow` | `$QG_BACKEND_URL` at build time, else `https://questgrow.example/` | R8 + resource shrink | see below |
+| **release** | `hq.playfoundry.questgrow` | `$QG_BACKEND_URL` at build time, else **`https://questgrow.opscale.ir/`** | R8 + resource shrink | see below |
 
 Debug and release can be installed side by side (different `applicationId`).
 Cleartext HTTP is permitted **only** for loopback hosts in release
@@ -14,10 +14,11 @@ QA can point at any staging host.
 
 ## Backend URL
 
-- Baked in at build time: `QG_BACKEND_URL=https://api.questgrow.example/ ./gradlew :app:assembleRelease`.
+- Release defaults to `https://questgrow.opscale.ir/` (the live backend).
+  Override at build time: `QG_BACKEND_URL=https://other/ ./gradlew :app:assembleRelease`.
 - Overridable at runtime: **parent Settings → Backend server** (or the
   "Backend server" expander on the sign-in screen). Persisted synchronously;
-  the app restarts to apply.
+  the app relaunches to apply.
 
 ## Building
 
@@ -25,30 +26,38 @@ QA can point at any staging host.
 cd android
 export ANDROID_HOME=$HOME/Android/Sdk            # or a local.properties sdk.dir
 ./gradlew :app:assembleDebug                     # app/build/outputs/apk/debug/app-debug.apk
-QG_BACKEND_URL=https://api.example/ ./gradlew :app:assembleRelease
+./gradlew :app:assembleRelease                   # signed, points at questgrow.opscale.ir
 ```
 
 ## Signing the release
 
-`assembleRelease` needs a signing key. Two ways:
+The QuestGrow **upload key** is a 4096-bit RSA key
+(`CN=QuestGrow, O=PlayFoundryHQ, C=IR`,
+SHA-256 `b3:2d:71:12:bd:aa:82:21:9d:65:95:88:f6:f6:81:f8:ab:59:14:b7:fa:66:30:bd:bb:14:2e:a1:8b:51:49:a8`).
+Keep the `.jks` and its passwords **off-repo and backed up** — losing it means
+a new `applicationId` for any future store listing.
 
-1. **`keystore.properties`** at `android/` (gitignored):
+`build.gradle.kts` reads the key from either:
+
+1. **`android/keystore.properties`** (gitignored):
    ```
-   storeFile=/absolute/path/to/upload.jks
+   storeFile=/absolute/path/to/questgrow-release.jks
    storePassword=…
-   keyAlias=upload
+   keyAlias=questgrow
    keyPassword=…
    ```
-2. **Environment** (CI): `QG_KEYSTORE_FILE`, `QG_KEYSTORE_PASSWORD`,
+2. **Environment**: `QG_KEYSTORE_FILE`, `QG_KEYSTORE_PASSWORD`,
    `QG_KEY_ALIAS`, `QG_KEY_PASSWORD`.
 
-If **neither** is present the build **falls back to the debug keystore** so the
-APK is still produced and installable — do **not** distribute that artifact.
-Generate a real upload key with:
+If neither is present the build **falls back to the debug keystore** — the
+APK is produced but must **not** be distributed. `scripts/release.sh --with-apk`
+verifies the signer is the QuestGrow key and aborts otherwise.
 
+To regenerate (only if the key is lost — this changes app identity):
 ```
-keytool -genkey -v -keystore upload.jks -alias upload \
-        -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkeypair -v -keystore questgrow-release.jks -storetype PKCS12 \
+        -alias questgrow -keyalg RSA -keysize 4096 -validity 10000 \
+        -dname "CN=QuestGrow, O=PlayFoundryHQ, C=IR"
 ```
 
 ## Versioning
