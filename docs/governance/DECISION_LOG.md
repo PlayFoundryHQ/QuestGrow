@@ -518,10 +518,13 @@ it.
   not localized). Adding a second language later is a fresh decision.
 - **Related principles:** #1, #2, #23
 - **Affected documents:**
-  [DESIGN_PRINCIPLES](../experience/DESIGN_PRINCIPLES.md),
-  [UX_PRINCIPLES](../experience/UX_PRINCIPLES.md),
-  [MVP](../product-delivery/MVP.md) (single-language scope — now named),
-  [android/README.md](../../android/README.md)
+  [android/README.md](../../android/README.md) (Persian, RTL, kid-first shell —
+  implemented Phase L); [DESIGN_PRINCIPLES](../experience/DESIGN_PRINCIPLES.md)
+  and [UX_PRINCIPLES](../experience/UX_PRINCIPLES.md) (language-agnostic — the
+  Persian-only + RTL fact is recorded here and in android/README, not by
+  editing every principle); [MVP](../product-delivery/MVP.md) single-language
+  scope is now named. Additive backend: `/v1/auth/pairing-code` + `/v1/auth/pair`
+  (6-digit device pairing; `tests/test_auth.py`).
 - **Related GitHub issues:** —
 
 ---

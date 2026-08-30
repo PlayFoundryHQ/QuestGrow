@@ -2,10 +2,35 @@
 
 A native Android **client** of the QuestGrow backend. It consumes the
 established `/v1` API and domain contracts (`docs/architecture/TECHNICAL_MODEL.md`,
-`DECISION-001…019`, `INV-1…18`, `docs/experience/UX_PRINCIPLES.md`). It does
+`DECISION-001…020`, `INV-1…18`, `docs/experience/UX_PRINCIPLES.md`). It does
 **not** re-implement QuestGrow's product model — the server stays authoritative
 for identity, `complexityProfile`, ownership stage, verification, rewards,
 balances and approvals.
+
+**Persian-only, RTL** ([DECISION-020](../docs/governance/DECISION_LOG.md)): all
+UI is Farsi, right-to-left, Persian digits (۰۱۲۳…), Vazirmatn font, tap-to-hear
+narration in Persian. The app forces `fa` regardless of device locale.
+
+## Shape ([[client-redesign]] — Phase L)
+
+- **Kid-first.** The app opens **straight to the kid's board** — no chooser,
+  no login on the family device (`CHILD_JOURNEY` "lands directly on Today").
+  Big illustrated cards, one tap → picture + «بشنو» / «انجام دادم» → calm
+  "منتظر بزرگترت" or an instant celebration.
+- **Parent gate.** A small, kid-resistant corner affordance (**long-press
+  only**) → a 4-digit **PIN pad**. Email + password are set once at signup and
+  stored on the device (`TokenStore`) so the everyday gate is PIN-only; the
+  client replays login+unlock behind it.
+- **Parent home** = each child's day in a line + the **approvals inbox** front
+  and centre (a card per pending completion, «تأیید» / «هنوز نه», «تأیید
+  همه»). Setup (routines / rewards / ownership / children / settings) is a
+  second layer.
+- **First run** = 3 guided screens (account+PIN → add child → pick routine
+  cards; auto-assigns + materialises).
+- **A kid's own device** pairs with a **6-digit code** the parent generates in
+  Settings (backend: `POST /v1/auth/pairing-code` → `POST /v1/auth/pair`,
+  additive, single-use, 15-min TTL). The raw child token never touches a
+  human.
 
 ## Architecture
 
@@ -24,12 +49,14 @@ data/local/  TokenStore (DataStore) · OfflineQueue (FileOfflineQueue)
 data/        AuthRepository · ChildRepository (offline-first) · ParentRepository
 data/model/  UI domain types — QuestVisualState never carries a stage (INV-8)
 adapt/       ComplexityProfile — consumes the server's §13 values, no age logic
-ui/child/    code entry · Today · Do-it (+ TTS) · waiting · celebration · progress
-ui/parent/   sign-in (PIN gate) · dashboard · approvals (+ batch) · family
-             (+ adaptation overrides) · quests (+ templates) · rewards · ownership
-             (+ suggestions) · settings
-             — every list section renders explicit Loading / Empty /
-               Failed(+retry) / offline states (`Loadable<T>`, `core/Loadable.kt`)
+ui/          Theme (Vazirmatn) · Fa (Persian digits) · Locale (fa/RTL) ·
+             Common (BigButton / Field / DigitPad) · Starters (routine set)
+ui/onboarding/ 3-screen wizard + the child-device 6-digit pairing
+ui/child/    ChildFlow — board · do-it (+ TTS) · waiting · celebration · progress
+ui/parent/   ParentGate (PIN pad) · ParentFlow (home + approvals inbox +
+             routines / rewards / ownership / children / settings)
+             — list sections keep the Loadable Loading/Empty/Failed states
+MainActivity  AppRoot — the Onboarding / Kid / Gate / Parent state machine
 ```
 
 ## Product-truth guarantees held by the client
@@ -42,9 +69,12 @@ ui/parent/   sign-in (PIN gate) · dashboard · approvals (+ batch) · family
   `409` means "already resolved" → drop the queued copy, not an error (INV-11).
 - **Rewards are server-authoritative** — points shown come from
   `/v1/me/celebrations` and `/v1/me/progress`; nothing is awarded locally.
-- **Auth contract verbatim** — `login → session → unlock(PIN) → parent token
-  → child token`. No refresh tokens, no OIDC, no new gate semantics — settled
-  (solo personal project; auth stays simple).
+- **Auth contract** — `login → session → unlock(PIN) → parent token →
+  child token`, unchanged. No refresh tokens, no OIDC. The client stores the
+  account email+password so the *gate* is PIN-only (it replays login+unlock);
+  the server-side re-challenge (`PARENT_TTL_S`) is untouched. The only
+  additive server change is `/v1/auth/pairing-code` + `/v1/auth/pair`
+  (single-use 6-digit code → child token) for a kid's own device.
 - **complexityProfile is consumed, not computed** — `text_style`,
   `quests_shown_at_once`, `audio_narration`, `reward_presentation` drive
   rendering; an unknown value falls back to the middle option.
@@ -64,9 +94,9 @@ Point the app at a backend: `BuildConfig.DEFAULT_BASE_URL` is
 `uvicorn questgrow.asgi:app --host 0.0.0.0 --port 8000` (see
 `docs/product-delivery/DEPLOYMENT.md`).
 
-Child sign-in: a parent creates a code in **Dashboard → Child sign-in code**
-(the app calls `/v1/auth/child-token`); paste it on the child's "enter code"
-screen.
+A kid on their own device: the parent generates a **6-digit code** in
+**Settings → کد ورود کودک**; the kid types it on the first-run
+"دستگاه کودک" screen.
 
 ## Testing
 
@@ -84,23 +114,22 @@ screen.
   `today()` marks a still-queued quest `QUEUED_OFFLINE`.
 - **`ComplexityProfileTest`** — band → rendering mapping, unknown-value
   fallback, clamp.
-- **`ChooserUiTest`** (instrumented) — Compose semantics + click.
-- **`AppFlowTest`** (instrumented, MockWebServer) — drives the real
-  `MainActivity` against a scripted `/v1`: child code → Today board,
-  server-authoritative completion (pending→waiting, verified→celebration
-  with server points), offline capture → queued-not-failed, INV-8 (no
-  stage/level on the child surface), cached-Today shown stale when offline,
-  parent PIN gate → dashboard, wrong-PIN error, approvals empty state,
-  quests backend-error → retry → list, parent-tab navigation.
+- **`AppFlowTest`** (instrumented, MockWebServer, 7) — drives the real
+  `MainActivity`/`AppRoot`: fresh install → "این دستگاه برای کیست؟";
+  child-device 6-digit pairing → kid board; kid completion pending →
+  "منتظر بزرگترت"; verified → celebration "+۱۰"; **INV-8** (no
+  stage/level/مرحله/سطح on the child surface); parent gate wrong PIN →
+  "رمز اشتباه" then correct → home; approvals inbox → approve → empty.
 
 ## Accessibility
 
 Implemented: ≥64 dp touch targets on child controls; `contentDescription` on
 quest cards and action buttons (carries the quest name even when `icon_only`
-hides the visible label); state shown as text + glyph, never colour alone;
-`speechSynthesis`/`TextToSpeech` tap-to-hear + `audio_narration: "always"`
-auto-read; reduced-motion honoured (celebration animation stilled when the OS
-animation scale is 0); large readable type.
+hides the visible label — Persian); state shown as text + glyph
+("⏳ منتظر" / "✓ انجام شد"), never colour alone; `TextToSpeech` tap-to-hear
+targeting a Persian voice (`Narrator` walks installed engines, e.g. AvaCore;
+"بشنو" is hidden when there is no `fa` voice); `audio_narration: "always"`
+auto-read; reduced-motion honoured; large readable type; RTL throughout.
 
 **Visually verified** (`google_apis` emulator under Xvfb):
 - *Cycle 2* — child chooser / code-entry / Today / Do-it / celebration /
