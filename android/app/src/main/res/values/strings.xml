@@ -66,6 +66,27 @@
     <string name="kid_stars">ستاره‌ها</string>
     <string name="kid_to_spend">برای خرج کردن: %1$s</string>
 
+    <!-- kid board header + v0.6.0 polish -->
+    <string name="kid_hi">سلام، %1$s! 👋</string>
+    <string name="kid_today_is">امروز %1$s است</string>
+    <string name="kid_nothing_today">امروز کاری برای انجام دادن نیست 🎈</string>
+
+    <!-- onboarding v0.6.0 -->
+    <string name="onb_who_sub">بیا با هم آماده شویم</string>
+    <string name="onb_account_sub">فقط یک بار — بعد با رمز ۴ رقمی وارد می‌شوی</string>
+    <string name="onb_child_sub">می‌توانی بعداً کودکان دیگر هم اضافه کنی</string>
+    <string name="onb_routines_sub">چند کار روزانه برای شروع</string>
+
+    <!-- parent hub v0.6.0 -->
+    <string name="parent_setup">تنظیم و مدیریت</string>
+    <string name="nav_routines_sub">کارهای روزانهٔ کودک</string>
+    <string name="nav_rewards_sub">جایزه‌ها و هزینهٔ ستاره‌ای</string>
+    <string name="nav_ownership_sub">میزان کمک برای هر کار</string>
+    <string name="nav_children_sub">افزودن کودک، فعال‌سازی روی دستگاه</string>
+    <string name="nav_settings_sub">اعلان‌ها، کد کودک، سرور</string>
+    <string name="parent_family">کودکان</string>
+    <string name="parent_all_caught_up">همه‌چیز به‌روز است ✓</string>
+
     <!-- kid: switch child + rewards -->
     <string name="kid_switch">کدام کودک؟</string>
     <string name="kid_rewards">🎁 جایزه‌ها</string>

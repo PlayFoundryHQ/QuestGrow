@@ -1,24 +1,27 @@
 package hq.playfoundry.questgrow.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,17 +56,31 @@ fun BigButton(
 }
 
 /**
- * Secondary action. 48dp default (fine on the parent surface); child-surface
- * callers pass [minHeight] = 64.dp.
+ * Secondary action — a soft filled-tonal button (reads as tappable without
+ * competing with the primary). 52dp default; child-surface callers pass
+ * [minHeight] = 64.dp.
  */
 @Composable
 fun SecondaryButton(
     text: String,
     modifier: Modifier = Modifier,
-    minHeight: Dp = 48.dp,
+    minHeight: Dp = 52.dp,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    OutlinedButton(onClick = onClick, modifier = modifier.heightIn(min = minHeight)) { Text(text) }
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = minHeight),
+    ) { Text(text, style = MaterialTheme.typography.labelLarge) }
+}
+
+/** Tertiary action — plain text button, for low-emphasis choices ("cancel", "back"). */
+@Composable
+fun GhostButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = modifier.heightIn(min = 48.dp)) {
+        Text(text, style = MaterialTheme.typography.labelLarge)
+    }
 }
 
 @Composable
@@ -127,17 +144,24 @@ fun DigitPad(
     length: Int = 4,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            (value.map { "●" } + List(length - value.length) { "○" }).joinToString("  "),
-            style = MaterialTheme.typography.headlineSmall,
-        )
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            repeat(length) { i ->
+                Box(
+                    Modifier.size(16.dp).clip(CircleShape)
+                        .background(
+                            if (i < value.length) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                )
+            }
+        }
         val rows = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("", "0", "⌫"))
         rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 row.forEach { key ->
                     if (key.isEmpty()) {
-                        Box(Modifier.width(84.dp).aspectRatio(1.4f))
+                        Box(Modifier.size(76.dp))
                     } else FilledTonalButton(
                         onClick = {
                             when {
@@ -145,8 +169,10 @@ fun DigitPad(
                                 value.length < length -> onValue(value + key)
                             }
                         },
-                        modifier = Modifier.width(84.dp).heightIn(min = 60.dp),
-                    ) { Text(if (key == "⌫") key else key.faDigits(), style = MaterialTheme.typography.titleLarge) }
+                        modifier = Modifier.size(76.dp),
+                        shape = CircleShape,
+                        contentPadding = PaddingValues(0.dp),
+                    ) { Text(if (key == "⌫") key else key.faDigits(), style = MaterialTheme.typography.headlineSmall) }
                 }
             }
         }
