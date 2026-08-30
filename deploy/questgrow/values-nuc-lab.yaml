@@ -18,12 +18,12 @@ config:
 
 ingress:
   enabled: true
+  kind: ingressroute        # match the house style (downtime)
   className: traefik
   host: questgrow.opscale.ir
   tls:
-    # ArvanCloud terminates TLS at its edge for *.opscale.ir (same as downtime).
-    # Flip to true + keep clusterIssuer if you want in-cluster cert-manager TLS instead.
-    enabled: false
+    enabled: true           # cert-manager http01 → questgrow-tls (proven on this cluster)
+    secretName: questgrow-tls
     clusterIssuer: letsencrypt-http01
 
 resources:

@@ -31,12 +31,11 @@ config:
 
 ingress:
   enabled: false
+  kind: ingress          # "ingress" (portable) | "ingressroute" (Traefik CRD)
   className: traefik
   host: questgrow.example.com
-  # TLS: set tls.enabled when the cluster terminates TLS (cert-manager).
-  # Leave off when an edge proxy (e.g. ArvanCloud) terminates TLS upstream.
   tls:
-    enabled: false
+    enabled: false       # cert-manager Certificate + TLS on the route
     secretName: questgrow-tls
     clusterIssuer: letsencrypt-http01
   annotations: {}
