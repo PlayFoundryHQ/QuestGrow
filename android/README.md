@@ -42,6 +42,18 @@ narration in Persian. The app forces `fa` regardless of device locale.
   additive, single-use, 15-min TTL). The raw child token never touches a
   human.
 
+## Design system (v0.6)
+
+One set of primitives every screen draws from — `ui/Theme.kt` (the Ink / Cream
+/ Pink / Sky / Leaf palette plus Material-3 container tints and a rounded shape
+scale), `ui/Scaffold.kt` (`AppScaffold` — the shared header + back + width cap +
+scroll + optional bottom bar; `SectionHeader` with a count badge; `Avatar`
+monogram; `StepDots`; the `Space` spacing scale), and `ui/Common.kt`
+(`BigButton` / `SecondaryButton` filled-tonal / `GhostButton` / `Field` /
+`DigitPad` / `SelectRow` / `SelectPill`). Onboarding is a 4-step stepper; the
+kid board leads with a greeting and an avatar switcher; the parent home is a
+card hub (glance + inboxes with badges + a 2-col setup grid).
+
 ## Architecture
 
 | Concern | Choice | Why |
