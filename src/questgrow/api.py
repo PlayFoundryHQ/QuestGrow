@@ -329,7 +329,7 @@ def create_app(
     ``cors_origins`` is a non-empty allow-list."""
     svc = service or QuestGrowService()
     store = auth or tokens or TokenStore()
-    app = FastAPI(title="QuestGrow API", version="0.6.1")
+    app = FastAPI(title="QuestGrow API", version="0.6.2")
     app.state.service = svc
     app.state.tokens = store
     app.state.auth = auth
