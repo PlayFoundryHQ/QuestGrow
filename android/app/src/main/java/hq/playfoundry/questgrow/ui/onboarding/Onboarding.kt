@@ -99,7 +99,7 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
 
             Step.Account -> {
                 Text(stringResource(R.string.onb_account_title), style = MaterialTheme.typography.headlineSmall)
-                Field(stringResource(R.string.onb_email), email, { email = it }, keyboard = KeyboardType.Email)
+                Field(stringResource(R.string.onb_email), email, { email = it }, keyboard = KeyboardType.Email, ltr = true)
                 Field(stringResource(R.string.onb_password), pass, { pass = it }, keyboard = KeyboardType.Password)
                 Field(
                     stringResource(R.string.onb_pin), pin,

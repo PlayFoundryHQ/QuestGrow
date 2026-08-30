@@ -348,7 +348,7 @@ private fun Settings(vm: ParentViewModel, container: AppContainer) {
     HorizontalDivider(Modifier.padding(vertical = 8.dp))
     Text(stringResource(R.string.settings_backend), style = MaterialTheme.typography.titleMedium)
     Text(stringResource(R.string.settings_backend_help), style = MaterialTheme.typography.bodyMedium)
-    Field(stringResource(R.string.settings_backend_url), url, { url = it })
+    Field(stringResource(R.string.settings_backend_url), url, { url = it }, ltr = true)
     SecondaryButton(stringResource(R.string.settings_save_restart)) { container.setBaseUrl(url); context.restartApp() }
     HorizontalDivider(Modifier.padding(vertical = 8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

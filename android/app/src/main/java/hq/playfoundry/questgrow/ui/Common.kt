@@ -17,6 +17,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,6 +27,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
@@ -99,6 +101,7 @@ fun Field(
     onValue: (String) -> Unit,
     modifier: Modifier = Modifier,
     keyboard: KeyboardType = KeyboardType.Text,
+    ltr: Boolean = false,
 ) {
     OutlinedTextField(
         value = value,
@@ -106,6 +109,9 @@ fun Field(
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+        textStyle = if (ltr) {
+            LocalTextStyle.current.copy(textDirection = TextDirection.Ltr, textAlign = TextAlign.Left)
+        } else LocalTextStyle.current,
         modifier = modifier.fillMaxWidth(),
     )
 }
