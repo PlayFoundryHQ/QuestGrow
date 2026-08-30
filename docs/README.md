@@ -50,8 +50,11 @@ docs/
 
 **MVP status.** Layer 0 is complete through **D1** (end-to-end MVP acceptance)
 — see [`product-delivery/D1_ACCEPTANCE.md`](./product-delivery/D1_ACCEPTANCE.md).
-Post-D1 work requires a new Product Owner grant per
-[`governance/LEADERSHIP_PROTOCOL.md`](./governance/LEADERSHIP_PROTOCOL.md) §22.
+Phase E (readiness), Phase F (production-foundation hardening — portable
+SQLite/Postgres persistence, migrations, durable auth/events, `/v1` API) and
+Phase G (native Android client — [`../android/`](../android/README.md)) have
+shipped. Each phase is a Product-Owner grant per
+[`governance/LEADERSHIP_PROTOCOL.md`](./governance/LEADERSHIP_PROTOCOL.md).
 
 **Implementation.** `src/questgrow/` is the MVP domain, written strictly
 against `architecture/TECHNICAL_MODEL.md`; `tests/` holds the AC-1…15 and

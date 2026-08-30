@@ -36,6 +36,16 @@ clients (browser + offline toggle + reduced-motion) — a QA activity, not
 construction. Post-D1 work requires a new Product Owner grant
 ([LEADERSHIP_PROTOCOL §22](../governance/LEADERSHIP_PROTOCOL.md)).
 
+**Post-D1 (Product-Owner grants, shipped).** Phase E — readiness &
+browser/UX validation ([`E_READINESS.md`](./E_READINESS.md)). Phase F —
+production foundation hardening: portable SQLite/PostgreSQL persistence +
+migrations, restart-safe ids, durable `SqlAuthStore` / `SqlEventSink`,
+login/unlock rate-limiting, env config + `build_app`, and an additive `/v1`
+API surface with structured error codes and list/detail endpoints
+([`DEPLOYMENT.md`](./DEPLOYMENT.md)). Phase G — the **native Android client**
+([`../../android/README.md`](../../android/README.md)), consuming the `/v1`
+contract; no product-model change.
+
 ## Layer 1 — Strengthen the core loop
 
 - Real-time celebration delivery for a co-present child (replace foreground
