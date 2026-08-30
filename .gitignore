@@ -13,5 +13,5 @@ dist/
 
 # stray local artifacts
 /tmp/
-data/
+/data/
 *.db
