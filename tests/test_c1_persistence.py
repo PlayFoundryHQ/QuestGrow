@@ -172,7 +172,8 @@ def test_complexity_profile_in_today_and_no_stage_or_level(repo):
 
 # --- schema scan -------------------------------------------------------
 def test_schema_has_no_drifting_stored_value_column():
-    low = SCHEMA.lower()
+    # scan the actual DDL, not the `-- ...` commentary
+    ddl = "\n".join(ln.split("--", 1)[0] for ln in SCHEMA.splitlines()).lower()
     for banned in ("balance", "streak", "verification_required", "independence",
                    "ownership_level", "lifetime_points", "spendable", "owned_routine_count"):
-        assert banned not in low, banned
+        assert banned not in ddl, banned

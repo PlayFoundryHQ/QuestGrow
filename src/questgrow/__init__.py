@@ -25,9 +25,10 @@ from .errors import AuthorizationError, ContractViolation, NotFound, QuestGrowEr
 from .events import CelebrationEvent, EventSink
 from .adaptation import ComplexityProfile, resolve_complexity_profile
 from .auth import AuthService
+from .db import Database, open_database
 from .entities import QuestSchedule
 from .repository import InMemoryRepository, Repository
-from .sqlite_repository import SqliteRepository
+from .sql_repository import PostgresRepository, SqliteRepository, SqlRepository
 from .scope import ChildScope, ParentScope, ServerScope
 from .service import DEFAULT_ADVANCEMENT_THRESHOLD, QuestGrowService
 
@@ -36,7 +37,11 @@ __all__ = [
     "DEFAULT_ADVANCEMENT_THRESHOLD",
     "InMemoryRepository",
     "SqliteRepository",
+    "PostgresRepository",
+    "SqlRepository",
     "Repository",
+    "Database",
+    "open_database",
     "ComplexityProfile",
     "resolve_complexity_profile",
     "AuthService",

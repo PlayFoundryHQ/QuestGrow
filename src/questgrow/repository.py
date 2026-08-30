@@ -17,6 +17,7 @@ Invariants enforced here:
 
 from __future__ import annotations
 
+import itertools
 from datetime import date
 from typing import Protocol
 
@@ -99,6 +100,10 @@ class Repository(Protocol):
     def delete_suggestion(self, child_id: str, quest_id: str) -> None: ...
     def suggestions_of(self, child_id: str) -> list[AdvancementSuggestion]: ...
 
+    # restart-safe id allocation (Phase F) — the counter lives in the store,
+    # not in a process-local ``itertools.count``.
+    def next_id(self, name: str) -> str: ...
+
 
 class InMemoryRepository:
     """Reference implementation. Objects are stored by identity; ``save_*`` is
@@ -121,6 +126,10 @@ class InMemoryRepository:
         self._redemptions: dict[str, RewardRedemption] = {}
         self._audit: list[AuditLogEntry] = []
         self._suggestions: dict[tuple[str, str], AdvancementSuggestion] = {}
+        self._ids = itertools.count(1)
+
+    def next_id(self, name: str) -> str:
+        return f"{name}-{next(self._ids)}"
 
     # accounts / children ------------------------------------------------
     def add_account(self, a: Account) -> None:

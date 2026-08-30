@@ -24,7 +24,6 @@ Subsystems represented (ARCHITECTURE "API services"):
 
 from __future__ import annotations
 
-import itertools
 from datetime import date, datetime, timezone
 
 from .adaptation import ComplexityProfile, resolve_complexity_profile
@@ -104,10 +103,10 @@ class QuestGrowService:
         self.events = events or EventSink()
         self.advancement_threshold = advancement_threshold
         self.pending_grace_days = pending_grace_days
-        self._ids = itertools.count(1)
 
     def _id(self, prefix: str) -> str:
-        return f"{prefix}-{next(self._ids)}"
+        # restart-safe id: the counter lives in the repository, not in memory
+        return self.repo.next_id(prefix)
 
     # ------------------------------------------------------------------ #
     # scope guards (TECHNICAL_MODEL §5)                                  #

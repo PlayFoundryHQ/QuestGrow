@@ -12,10 +12,26 @@
 
 Python 3.11+, `pytest`. The domain library (`enums`/`entities`/`ownership`/
 `scheduling`/`projections`/`service`) is dependency-free; C1 adds two seams on
-top — `adaptation.py` (the §13 `complexityProfile` resolver) and
-`sqlite_repository.py` (a `sqlite3`-backed `Repository`, Postgres-portable
-schema). `repository.Repository` is a `Protocol`; `InMemoryRepository` and
-`SqliteRepository` are drop-in and the full AC/INV suite runs against both.
+top — `adaptation.py` (the §13 `complexityProfile` resolver) and the SQL
+persistence backend. `repository.Repository` is a `Protocol` with three
+implementations: `InMemoryRepository` (reference / pure-domain tests) and
+`sql_repository.SqlRepository` in two dialects — `SqliteRepository` (dev /
+single-family / D1) and `PostgresRepository` (multi-family production). The
+full AC/INV suite runs against all of them.
+
+**Persistence internals (Phase F).** `db.py` is the connection seam
+(`SqliteDatabase` / `PostgresDatabase`, `open_database(url)`); it hides the
+`?`↔`%s` placeholder difference and gives SQLite WAL + `busy_timeout` +
+`foreign_keys` and Postgres a `psycopg_pool` connection pool. The schema lives
+in `migrations/NNNN_*.sql` (portable SQL) and is applied by `migrate.run(db)`
+on repository init and by `python -m questgrow.migrate <url>`; a
+`schema_migrations` table tracks what has run. Nothing monotonic lives in
+Python: ledger/audit `seq` is `COALESCE((SELECT MAX(seq) …),0)+1` in SQL and
+service-issued ids come from an `id_counter` row via `Repository.next_id`, so
+a restart continues rather than resetting. The append-only ledger guarantee is
+unchanged — INSERT-only, a duplicate `idempotency_key` is `ON CONFLICT DO
+NOTHING` returning `False` (INV-11/12). `sqlite_repository.py` is a
+back-compat shim re-exporting `SqliteRepository` + `SCHEMA`.
 C2 adds `api.py` — a FastAPI transport over `QuestGrowService` with bearer
 token → scope resolution (`TokenStore`), the §5 actor matrix mirrored at the
 HTTP boundary (403 before the service is reached), and child response models
@@ -55,7 +71,7 @@ assigns it by default in MVP.
 | `service.py` rewards (`redeem_reward`, `grant_redemption`, `decline_redemption`) | §6 redemption modes | INV-13, INV-18 | AC-6 |
 | `projections.py` (`lifetime_achievement`, `spendable_balance`, `TodayPayload`, `WeeklyConsistency`, `DailyProgress`) | §7 | INV-8, INV-9, INV-13, INV-16 | AC-8, AC-9 |
 | `adaptation.py` (`ComplexityProfile`, `resolve_complexity_profile`) | §13 | INV-8 (no stage/level field — structural) | — |
-| `repository.py` (`Repository` protocol) + `sqlite_repository.py` (`SqliteRepository`, `SCHEMA`) | §10 / TOQ-7; append-only ledger | INV-1, INV-11, INV-12 | AC-2, AC-12 |
+| `repository.py` (`Repository` protocol, `InMemoryRepository`) + `sql_repository.py` (`SqlRepository` → `SqliteRepository` / `PostgresRepository`) + `db.py` + `migrate.py` + `migrations/*.sql` | §10 / TOQ-7; append-only ledger; portable schema; restart-safe ids/seq | INV-1, INV-11, INV-12 | AC-2, AC-12 |
 | `api.py` (`create_app`, `TokenStore`, wire models) | §5 actor matrix at the HTTP boundary; §13 payload | INV-5, INV-8, INV-17, INV-18 | AC-1, AC-2, AC-5, AC-8, AC-9, AC-11, AC-13 |
 | `auth.py` (`AuthService`: signup / login / `unlock_parent` / `issue_child_token` / `resolve`) | §5 (parent gate); ARCHITECTURE "Auth & authorization" | INV-17, INV-18 | AC-5 |
 | `events.py` (`EventSink`, `CelebrationEvent`, `ParentNotification`) + `notifications.py` (templates, `BANNED_SUBSTRINGS`) | §4 `completion.verified`; ARCHITECTURE notification service (opt-in, informational, never child-addressed) | INV-8 (no stage label in event) | AC-1, AC-2, AC-10 |
