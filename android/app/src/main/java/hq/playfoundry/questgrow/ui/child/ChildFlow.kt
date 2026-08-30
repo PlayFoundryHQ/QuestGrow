@@ -58,7 +58,7 @@ import hq.playfoundry.questgrow.ui.collectAsStateSafe
 import hq.playfoundry.questgrow.ui.isReducedMotion
 
 @Composable
-fun ChildFlow(container: AppContainer, onExit: () -> Unit) {
+fun ChildFlow(container: AppContainer, onGrownUps: () -> Unit) {
     val vm: ChildViewModel = viewModel { ChildViewModel(container) }
     val nav = rememberNavController()
     val narrator = rememberNarrator()
@@ -70,7 +70,7 @@ fun ChildFlow(container: AppContainer, onExit: () -> Unit) {
                 vm = vm, narrator = narrator,
                 onOpenQuest = { q -> nav.navigate("doit/${q.questId}/${q.title}/${q.icon}") },
                 onProgress = { vm.loadProgress(); nav.navigate("progress") },
-                onExit = onExit,
+                onExit = onGrownUps,
             )
         }
         composable("doit/{qid}/{title}/{icon}") { entry ->

@@ -10,15 +10,42 @@ import hq.playfoundry.questgrow.data.net.UnlockBody
 import hq.playfoundry.questgrow.data.net.apiCall
 
 /**
- * Consumes the established auth contract verbatim (grant §8):
+ * Consumes the established auth contract verbatim:
  *   login → session token → unlock(PIN) → ParentScope token → ChildScope token
- * No refresh tokens, no new gate semantics, no recovery flows.
+ * No refresh tokens. The account email+password are stored on the device
+ * ([TokenStore]) so the everyday parent gate is PIN-only — [unlockWithPin]
+ * replays login+unlock. Personal single-family simplification ([[auth-policy]]).
  */
 class AuthRepository(
     private val api: QuestGrowApi,
     private val tokens: TokenStore,
     private val onForget: () -> Unit = {},
 ) {
+    fun isOnboarded(): Boolean = tokens.accountEmailBlocking() != null
+
+    /** Sign up, sign in, and remember the account on this device. */
+    suspend fun registerParent(email: String, password: String, pin: String): ApiResult<Unit> {
+        return when (val s = signUp(email, password, pin)) {
+            is ApiResult.Ok -> when (val r = signInAsParent(email, password, pin)) {
+                is ApiResult.Ok -> { tokens.setAccount(email, password); ApiResult.Ok(Unit) }
+                is ApiResult.Failure -> r
+                is ApiResult.Offline -> r
+            }
+            is ApiResult.Failure -> s
+            is ApiResult.Offline -> s
+        }
+    }
+
+    /** Everyday parent gate: PIN only, using the stored account. */
+    suspend fun unlockWithPin(pin: String): ApiResult<Unit> {
+        val email = tokens.accountEmailBlocking()
+        val pass = tokens.accountPasswordBlocking()
+        if (email == null || pass == null) {
+            return ApiResult.Failure(401, "not_authenticated", "no account on this device")
+        }
+        return signInAsParent(email, pass, pin)
+    }
+
     /** login + unlock in one call — returns the parent token, or the failure. */
     suspend fun signInAsParent(email: String, password: String, pin: String): ApiResult<Unit> {
         val login = apiCall { api.login(LoginBody(email.trim(), password)) }

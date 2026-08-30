@@ -140,4 +140,6 @@
     <string name="settings_child_code">کد ورود کودک</string>
     <string name="settings_create_code">ساختن کد</string>
     <string name="code_created">کد: %1$s</string>
+    <string name="onb_next">بعدی</string>
+    <string name="err_offline">آفلاین — الان نمی‌شود این را انجام داد.</string>
 </resources>

@@ -41,7 +41,10 @@ data class ParentState(
 }
 
 class ParentViewModel(private val container: AppContainer) : ViewModel() {
-    private val _state = MutableStateFlow(ParentState())
+    // the parent gate (PIN pad) has already unlocked before this VM is shown
+    private val _state = MutableStateFlow(
+        ParentState(signedIn = container.tokenStore.parentTokenBlocking() != null),
+    )
     val state: StateFlow<ParentState> = _state
     private val repo get() = container.parentRepo
 
