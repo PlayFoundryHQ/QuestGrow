@@ -28,6 +28,8 @@ ui/child/    code entry · Today · Do-it (+ TTS) · waiting · celebration · p
 ui/parent/   sign-in (PIN gate) · dashboard · approvals (+ batch) · family
              (+ adaptation overrides) · quests (+ templates) · rewards · ownership
              (+ suggestions) · settings
+             — every list section renders explicit Loading / Empty /
+               Failed(+retry) / offline states (`Loadable<T>`, `core/Loadable.kt`)
 ```
 
 ## Product-truth guarantees held by the client
@@ -62,14 +64,14 @@ Point the app at a backend: `BuildConfig.DEFAULT_BASE_URL` is
 `uvicorn questgrow.asgi:app --host 0.0.0.0 --port 8000` (see
 `docs/product-delivery/DEPLOYMENT.md`).
 
-Child sign-in: a parent creates a code in **Settings → Child sign-in code**
+Child sign-in: a parent creates a code in **Dashboard → Child sign-in code**
 (the app calls `/v1/auth/child-token`); paste it on the child's "enter code"
 screen.
 
 ## Testing
 
 ```
-./gradlew :app:testDebugUnitTest            # 19 JVM tests
+./gradlew :app:testDebugUnitTest            # 24 JVM tests
 ./gradlew :app:connectedDebugAndroidTest    # instrumented (needs a device/emulator)
 ```
 
@@ -83,6 +85,13 @@ screen.
 - **`ComplexityProfileTest`** — band → rendering mapping, unknown-value
   fallback, clamp.
 - **`ChooserUiTest`** (instrumented) — Compose semantics + click.
+- **`AppFlowTest`** (instrumented, MockWebServer) — drives the real
+  `MainActivity` against a scripted `/v1`: child code → Today board,
+  server-authoritative completion (pending→waiting, verified→celebration
+  with server points), offline capture → queued-not-failed, INV-8 (no
+  stage/level on the child surface), cached-Today shown stale when offline,
+  parent PIN gate → dashboard, wrong-PIN error, approvals empty state,
+  quests backend-error → retry → list, parent-tab navigation.
 
 ## Accessibility
 
@@ -93,16 +102,25 @@ hides the visible label); state shown as text + glyph, never colour alone;
 auto-read; reduced-motion honoured (celebration animation stilled when the OS
 animation scale is 0); large readable type.
 
-**Visually verified** (Cycle 2, `google_apis` emulator under Xvfb): the child
-chooser / code-entry / Today / Do-it / celebration / progress screens and the
-parent sign-in / dashboard / approvals screens render correctly, edge-to-edge
-content is inset clear of the system bars, and state is shown as text + glyph.
-**Accessibility (TalkBack) verified at the semantics layer:** icon-only quest
-cards announce "`<quest>`, done" / "`<quest>`, waiting" / "`<quest>`" — the
-name is spoken even when the label is visually hidden, and no stage/level
-leaks into the spoken text (INV-8).
-**NOT verified:** audible TTS output; a real physical device; deep TalkBack
-gesture navigation.
+**Visually verified** (`google_apis` emulator under Xvfb):
+- *Cycle 2* — child chooser / code-entry / Today / Do-it / celebration /
+  progress and parent sign-in / dashboard / approvals.
+- *Cycle 3* — parent Family / Quests / Rewards / Ownership / Settings tabs,
+  the new Loading/Empty/Failed(+retry) section states, and the clean
+  backend-URL relaunch (Settings → "Save & restart app": the process
+  restarts and re-enters at the mode chooser — no `killProcess`).
+- All at font scale 1.0, and re-checked at **1.5× and 2.0×** — every screen
+  stays scrollable, text wraps, no control is clipped or unreachable.
+
+**Accessibility verified at the AccessibilityNodeInfo / Compose-semantics
+layer:** icon-only quest cards announce "`<quest>`, done" / "`<quest>`,
+waiting" / "`<quest>`" — the name is exposed even when the label is visually
+hidden, and no stage/level leaks into it (INV-8). Child-surface touch
+targets are ≥64 dp (primary actions via `BigButton`; secondary buttons —
+"‹ Today", "Progress", "Grown-up" — raised from 48 dp to 64 dp in Cycle 3).
+**NOT verified:** audible TTS output (no audio sink); a real physical
+device; TalkBack swipe-traversal focus order (touch-exploration does not
+engage on the headless emulator).
 
 ## Offline behaviour
 
@@ -129,8 +147,11 @@ disabled (`data_extraction_rules.xml`). Adaptive launcher icon.
 ## Known limitations
 
 - No push / real-time celebration (poll only — matches the backend).
-- Runtime base-URL change persists (`.commit()`) and kills the process to
-  reload; a proper task-restart would be smoother.
+- Runtime base-URL change persists synchronously (`.commit()`), then
+  `Context.restartApp()` relaunches from the launcher entry point
+  (`FLAG_ACTIVITY_NEW_TASK | CLEAR_TASK`, then `exit(0)`) so
+  `Application.onCreate` rebuilds `AppContainer` cleanly. The
+  DataStore-backed session survives; the PIN gate re-applies (unchanged).
 - Single `:app` module; a production split (`:core`, `:data`, `:ui`) is a
   reasonable later refactor.
 - iOS, Play Store packaging / `.aab`, analytics, monetization: out of scope.
