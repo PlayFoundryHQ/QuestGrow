@@ -34,6 +34,12 @@ say "preflight"
 git fetch -q origin
 [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || { echo "local main != origin/main"; exit 1; }
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "tag $tag already exists"; exit 1; }
+command -v gh docker helm >/dev/null || { echo "need gh, docker, helm on PATH"; exit 1; }
+# ghcr auth (idempotent — uses the gh token, needs write:packages)
+if ! (( dry )); then
+  gh auth token | docker login ghcr.io -u "$(gh api user --jq .login)" --password-stdin >/dev/null
+  gh auth token | helm registry login ghcr.io -u "$(gh api user --jq .login)" --password-stdin >/dev/null
+fi
 sha="$(git rev-parse --short HEAD)"
 
 say "tests"
