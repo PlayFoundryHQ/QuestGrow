@@ -208,10 +208,12 @@ touching the contract (`TECHNICAL_MODEL`).
 |---|---|---|
 | Language | **Python 3.11+** | the `a0b538c` domain is already stdlib Python; keep it |
 | Web framework | **FastAPI** (+ `uvicorn`) | typed request/response models → the §5 scope model and INV-8 boundary are enforceable as schemas; auto OpenAPI |
-| Persistence | **SQLite** for dev / reference / D1; **Postgres-portable schema** (plain SQL, no ORM lock-in) | zero-ops for the acceptance run; the `Repository` protocol keeps the engine swappable (TOQ-7) |
-| Auth | email + password (hashed, `argon2`/`pbkdf2`), server-issued **scoped tokens**; **parent gate = PIN** | smallest thing that realises the §5 actor matrix; challenge design can harden later |
-| Real-time | **poll** `completion.verified` on app foreground (MVP) | `ARCHITECTURE` already allows this; socket/push is Layer 1 |
-| Client (MVP-readiness) | **thin reference web clients** — one child, one parent — sufficient to run every `MVP.md` acceptance item for D1 | a production **mobile** (iOS + Android) client is a distinct track *on the same API*, post-readiness; not built in the MVP-implementation phase |
+| Persistence | **SQLite** (dev / single-family / D1) or **PostgreSQL** (multi-family) — one portable `SqlRepository`, plain SQL, no ORM, `migrations/*.sql` applied by `migrate.run`. Restart-safe (ids/`seq` in SQL). *(Phase F)* | the `Repository` protocol keeps the engine swappable (TOQ-7); `db.py` hides the two dialects |
+| Auth | email + password (PBKDF2), PIN parent gate, server-issued **scoped tokens**; credentials + tokens + failed-attempt counters in the DB (`SqlAuthStore`); login/unlock **rate-limited + lockout**. *(Phase F)* | realises the §5 actor matrix, restart-safe; re-challenge cadence / refresh-token existence remain **PO decisions** |
+| Config | `Settings.from_env` + `build_app` (`uvicorn questgrow.asgi:app`); `QUESTGROW_DATABASE_URL`, TTLs, abuse limits, CORS allow-list — **CORS off by default**. *(Phase F)* | production-safe defaults; no product knobs |
+| Real-time | **poll** `completion.verified` on app foreground | socket/push is Layer 1 |
+| API | every route served unprefixed **and under `/v1`**; structured error `code`s; list/detail endpoints. *(Phase F, additive)* | a native client pins `/v1` and branches on `code` |
+| Client (MVP-readiness) | **thin reference web clients** — one child, one parent — sufficient to run every `MVP.md` acceptance item for D1 | a production **mobile** (Android) client is Phase G *on the same API* |
 
 The 8-occurrence advancement threshold ships as **one global tunable default**
 (`OWNERSHIP_MODEL` open question — the deferred option); per-band tuning stays
@@ -219,9 +221,11 @@ post-MVP.
 
 ## Open questions (remaining, post-MVP)
 
-- Production mobile client framework (RN / Flutter / native).
-- Hosting / deployment topology.
+- Native Android client (Phase G) — consumes the `/v1` API + domain contracts.
+- Hosting / deployment topology (container, managed Postgres, TLS termination).
 - Socket/push real-time delivery (Layer 1).
-- Hardened parent-gate challenge design for the 3–8 context.
+- **Product decisions the PO has reserved:** parent-gate re-challenge cadence;
+  whether a refresh token exists as a product behaviour; hardened-challenge
+  design for the 3–8 context.
 - Per-age-band tuning of the advancement threshold
   ([OWNERSHIP_MODEL open questions](../experience/OWNERSHIP_MODEL.md)).

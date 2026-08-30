@@ -22,8 +22,8 @@ import secrets
 from datetime import date, datetime
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, FastAPI, Header
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 _WEBCLIENT_DIR = Path(__file__).parent / "webclient"
@@ -31,7 +31,14 @@ _WEBCLIENT_DIR = Path(__file__).parent / "webclient"
 from .adaptation import ComplexityProfile
 from .entities import QuestSchedule
 from .enums import OwnershipStage, Recurrence, RedemptionMode
-from .errors import AuthorizationError, ContractViolation, NotFound
+from .errors import (
+    AuthenticationError,
+    AuthorizationError,
+    BadRequest,
+    ContractViolation,
+    NotFound,
+    QuestGrowError,
+)
 from .scope import ChildScope, ParentScope, Scope
 from .service import QuestGrowService
 
@@ -276,62 +283,67 @@ def create_app(
     service: QuestGrowService | None = None,
     tokens: TokenStore | None = None,
     auth=None,
+    cors_origins: list[str] | None = None,
 ) -> FastAPI:
     """``auth`` (an ``auth.AuthService``) is optional. When given, it is the
     token resolver and the ``/auth/*`` routes are mounted; otherwise a bare
-    ``TokenStore`` is used (dev / C2 tests)."""
+    ``TokenStore`` is used (dev / C2 tests).
+
+    Every API route is served both unprefixed (legacy / reference clients) and
+    under ``/v1`` (the stable base a native client pins). CORS is off unless
+    ``cors_origins`` is a non-empty allow-list."""
     svc = service or QuestGrowService()
     store = auth or tokens or TokenStore()
-    app = FastAPI(title="QuestGrow API", version="0.2.0")
+    app = FastAPI(title="QuestGrow API", version="0.3.0")
     app.state.service = svc
     app.state.tokens = store
     app.state.auth = auth
+    router = APIRouter()
+
+    if cors_origins:
+        from fastapi.middleware.cors import CORSMiddleware
+
+        app.add_middleware(
+            CORSMiddleware, allow_origins=list(cors_origins), allow_credentials=True,
+            allow_methods=["*"], allow_headers=["*"],
+        )
 
     def _scope(authorization: str = Header(default="")) -> Scope:
         if not authorization.startswith("Bearer "):
-            raise HTTPException(401, "missing bearer token")
+            raise AuthenticationError("missing bearer token")
         sc = store.resolve(authorization[7:])
         if sc is None:
-            raise HTTPException(401, "invalid token")
+            raise AuthenticationError("invalid or expired token")
         return sc
 
     def _parent(scope: Scope = Depends(_scope)) -> ParentScope:
         if not isinstance(scope, ParentScope):
-            raise HTTPException(403, "parent scope required")
+            raise AuthorizationError("parent scope required")
         return scope
 
     def _child(scope: Scope = Depends(_scope)) -> ChildScope:
         if not isinstance(scope, ChildScope):
-            raise HTTPException(403, "child scope required")
+            raise AuthorizationError("child scope required")
         return scope
 
     def _since(since: str | None = None) -> datetime | None:
         """Optional ISO-8601 poll cursor. An empty string means 'no cursor'
-        (a fresh client has nothing stored) — not a 422."""
+        (a fresh client has nothing stored) — not an error."""
         if not since:
             return None
         try:
             return datetime.fromisoformat(since)
         except ValueError:
-            raise HTTPException(422, "since must be an ISO-8601 timestamp")
+            raise BadRequest("since must be an ISO-8601 timestamp")
 
-    @app.exception_handler(AuthorizationError)
-    def _auth_err(_req, exc):  # noqa: ANN001
-        from fastapi.responses import JSONResponse
+    def _domain_err(_req, exc: QuestGrowError):
+        # structured error: stable `code` for clients + human `detail` (Phase F)
+        return JSONResponse(status_code=exc.http_status,
+                            content={"detail": str(exc), "code": exc.code})
 
-        return JSONResponse(status_code=403, content={"detail": str(exc)})
-
-    @app.exception_handler(NotFound)
-    def _nf_err(_req, exc):  # noqa: ANN001
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse(status_code=404, content={"detail": str(exc)})
-
-    @app.exception_handler(ContractViolation)
-    def _cv_err(_req, exc):  # noqa: ANN001
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse(status_code=409, content={"detail": str(exc)})
+    for _exc in (AuthenticationError, AuthorizationError, NotFound, ContractViolation,
+                 BadRequest, QuestGrowError):
+        app.add_exception_handler(_exc, _domain_err)
 
     # -- reference web clients (C5/C6) — static single-file apps ----
     @app.get("/app/child", include_in_schema=False)
@@ -347,21 +359,21 @@ def create_app(
         return FileResponse(_WEBCLIENT_DIR / "parent.html")
 
     if auth is not None:
-        @app.post("/auth/signup")
+        @router.post("/auth/signup")
         def signup(body: SignupIn):
             return {"account_id": auth.signup(email=body.email, password=body.password,
                                               pin=body.pin)}
 
-        @app.post("/auth/login")
+        @router.post("/auth/login")
         def login(body: LoginIn):
             return {"session_token": auth.login(email=body.email, password=body.password)}
 
-        @app.post("/auth/unlock")
+        @router.post("/auth/unlock")
         def unlock(body: UnlockIn):
             return {"parent_token": auth.unlock_parent(session_token=body.session_token,
                                                        pin=body.pin)}
 
-        @app.post("/auth/child-token")
+        @router.post("/auth/child-token")
         def child_token(body: ChildTokenIn, authorization: str = Header(default=""),
                         p: ParentScope = Depends(_parent)):
             # _parent already validated the parent-gate token; pass it through
@@ -385,13 +397,13 @@ def create_app(
         return ChildOut(child_id=c.child_id, name=c.name, age_band=c.age_band,
                         avatar=c.avatar, birthdate=c.birthdate)
 
-    @app.post("/children", response_model=ChildOut)
+    @router.post("/children", response_model=ChildOut)
     def add_child(body: ChildIn, p: ParentScope = Depends(_parent)):
         return _child_out(svc.add_child(p, child_id=body.child_id, name=body.name,
                                         age_band=body.age_band, avatar=body.avatar,
                                         birthdate=body.birthdate))
 
-    @app.patch("/children/{child_id}", response_model=ChildOut)
+    @router.patch("/children/{child_id}", response_model=ChildOut)
     def set_child_profile(child_id: str, body: ChildProfileIn, p: ParentScope = Depends(_parent)):
         return _child_out(svc.set_child_profile(
             p, child_id=child_id, name=body.name, avatar=body.avatar,
@@ -399,22 +411,34 @@ def create_app(
             adaptation_overrides=body.adaptation_overrides,
         ))
 
+    @router.get("/children", response_model=list[ChildOut])
+    def list_children(p: ParentScope = Depends(_parent)):
+        return [_child_out(c) for c in svc.list_children(p)]
+
+    @router.get("/children/{child_id}", response_model=ChildOut)
+    def get_child(child_id: str, p: ParentScope = Depends(_parent)):
+        return _child_out(svc.get_child_for(p, child_id=child_id))
+
     # -- parent: quests / schedules --------------------------------
-    @app.post("/quests", response_model=QuestOut)
+    @router.post("/quests", response_model=QuestOut)
     def create_quest(body: QuestIn, p: ParentScope = Depends(_parent)):
         return _quest_out(svc.create_quest(p, quest_id=body.quest_id, title=body.title,
                                            icon=body.icon, points=body.points))
 
-    @app.patch("/quests/{quest_id}", response_model=QuestOut)
+    @router.patch("/quests/{quest_id}", response_model=QuestOut)
     def edit_quest(quest_id: str, body: QuestEditIn, p: ParentScope = Depends(_parent)):
         changes = body.model_dump(exclude_none=True)
         return _quest_out(svc.edit_quest(p, quest_id=quest_id, **changes))
 
-    @app.post("/quests/seed-starters", response_model=list[QuestOut])
+    @router.post("/quests/seed-starters", response_model=list[QuestOut])
     def seed_starters(p: ParentScope = Depends(_parent)):
         return [_quest_out(q) for q in svc.seed_starter_quests(p)]
 
-    @app.put("/quests/{quest_id}/schedule")
+    @router.get("/quests", response_model=list[QuestOut])
+    def list_quests(p: ParentScope = Depends(_parent)):
+        return [_quest_out(q) for q in svc.list_quests(p)]
+
+    @router.put("/quests/{quest_id}/schedule")
     def set_schedule(quest_id: str, body: ScheduleIn, p: ParentScope = Depends(_parent)):
         svc.set_schedule(p, quest_id=quest_id,
                          schedule=QuestSchedule(quest_id, body.recurrence,
@@ -422,42 +446,46 @@ def create_app(
         return {"ok": True}
 
     # -- parent: rewards ------------------------------------------
-    @app.post("/rewards", response_model=RewardOut)
+    @router.post("/rewards", response_model=RewardOut)
     def create_reward(body: RewardIn, p: ParentScope = Depends(_parent)):
         return _reward_out(svc.create_reward(p, reward_id=body.reward_id, name=body.name,
                                              icon=body.icon, cost=body.cost, mode=body.mode))
 
-    @app.patch("/rewards/{reward_id}", response_model=RewardOut)
+    @router.patch("/rewards/{reward_id}", response_model=RewardOut)
     def edit_reward(reward_id: str, body: RewardEditIn, p: ParentScope = Depends(_parent)):
         changes = body.model_dump(exclude_none=True)
         return _reward_out(svc.edit_reward(p, reward_id=reward_id, **changes))
 
+    @router.get("/rewards", response_model=list[RewardOut])
+    def list_rewards(p: ParentScope = Depends(_parent)):
+        return [_reward_out(r) for r in svc.list_rewards(p)]
+
     # -- parent: assignment / ownership -------------------------
-    @app.post("/children/{child_id}/quests")
+    @router.post("/children/{child_id}/quests")
     def assign_quest(child_id: str, body: AssignIn, p: ParentScope = Depends(_parent)):
         cq = svc.assign_quest(p, child_id=child_id, quest_id=body.quest_id)
         return {"child_id": cq.child_id, "quest_id": cq.quest_id}
 
-    @app.put("/children/{child_id}/quests/{quest_id}/ownership", response_model=OwnershipPlanOut)
+    @router.put("/children/{child_id}/quests/{quest_id}/ownership", response_model=OwnershipPlanOut)
     def set_ownership(child_id: str, quest_id: str, body: OwnershipIn,
                       p: ParentScope = Depends(_parent)):
         plan = svc.set_ownership_stage(p, child_id=child_id, quest_id=quest_id, target=body.target)
         return OwnershipPlanOut(direction=plan.direction, bypassed=list(plan.bypassed))
 
-    @app.get("/children/{child_id}/suggestions", response_model=list[SuggestionOut])
+    @router.get("/children/{child_id}/suggestions", response_model=list[SuggestionOut])
     def suggestions(child_id: str, p: ParentScope = Depends(_parent)):
         return [
             SuggestionOut(quest_id=s.quest_id, from_stage=s.from_stage, to_stage=s.to_stage)
             for s in svc.advancement_suggestions(p, child_id=child_id)
         ]
 
-    @app.post("/children/{child_id}/quests/{quest_id}/suggestion/accept",
+    @router.post("/children/{child_id}/quests/{quest_id}/suggestion/accept",
               response_model=OwnershipPlanOut)
     def accept_suggestion(child_id: str, quest_id: str, p: ParentScope = Depends(_parent)):
         plan = svc.accept_advancement_suggestion(p, child_id=child_id, quest_id=quest_id)
         return OwnershipPlanOut(direction=plan.direction, bypassed=list(plan.bypassed))
 
-    @app.post("/children/{child_id}/quests/{quest_id}/suggestion/dismiss")
+    @router.post("/children/{child_id}/quests/{quest_id}/suggestion/dismiss")
     def dismiss_suggestion(child_id: str, quest_id: str, permanent: bool = False,
                            p: ParentScope = Depends(_parent)):
         svc.dismiss_advancement_suggestion(p, child_id=child_id, quest_id=quest_id,
@@ -465,40 +493,40 @@ def create_app(
         return {"ok": True}
 
     # -- parent: verification / review / ledger ----------------
-    @app.get("/children/{child_id}/approvals", response_model=list[ApprovalOut])
+    @router.get("/children/{child_id}/approvals", response_model=list[ApprovalOut])
     def approvals(child_id: str, p: ParentScope = Depends(_parent)):
         return [
             ApprovalOut(quest_id=i.quest_id, on_date=i.on_date, state=i.state.value)
             for i in svc.approvals_queue(p, child_id=child_id)
         ]
 
-    @app.post("/children/{child_id}/quests/{quest_id}/approve")
+    @router.post("/children/{child_id}/quests/{quest_id}/approve")
     def approve(child_id: str, quest_id: str, body: DayIn, p: ParentScope = Depends(_parent)):
         i = svc.approve(p, child_id=child_id, quest_id=quest_id, day=body.day)
         return {"quest_id": i.quest_id, "state": i.state.value}
 
-    @app.post("/children/{child_id}/quests/{quest_id}/not-yet")
+    @router.post("/children/{child_id}/quests/{quest_id}/not-yet")
     def not_yet(child_id: str, quest_id: str, body: NotYetIn, p: ParentScope = Depends(_parent)):
         i = svc.not_yet(p, child_id=child_id, quest_id=quest_id, day=body.day, note=body.note)
         return {"quest_id": i.quest_id, "state": i.state.value}
 
-    @app.post("/children/{child_id}/quests/{quest_id}/record")
+    @router.post("/children/{child_id}/quests/{quest_id}/record")
     def record(child_id: str, quest_id: str, body: DayIn, p: ParentScope = Depends(_parent)):
         i = svc.record_completion(p, child_id=child_id, quest_id=quest_id, day=body.day)
         return {"quest_id": i.quest_id, "state": i.state.value}
 
-    @app.post("/children/{child_id}/reviews")
+    @router.post("/children/{child_id}/reviews")
     def create_review(child_id: str, body: ReviewIn, p: ParentScope = Depends(_parent)):
         r = svc.create_parent_review(p, child_id=child_id, quest_id=body.quest_id,
                                      day=body.day, note=body.note, flagged=body.flagged)
         return {"id": r.id}
 
-    @app.post("/children/{child_id}/adjustments")
+    @router.post("/children/{child_id}/adjustments")
     def adjustment(child_id: str, body: AdjustmentIn, p: ParentScope = Depends(_parent)):
         e = svc.apply_adjustment(p, child_id=child_id, amount=body.amount, reason=body.reason)
         return {"id": e.id, "points": e.points}
 
-    @app.get("/children/{child_id}/dashboard", response_model=DashboardOut)
+    @router.get("/children/{child_id}/dashboard", response_model=DashboardOut)
     def dashboard(child_id: str, day: date, week_start: date | None = None,
                   p: ParentScope = Depends(_parent)):
         dp = svc.daily_progress(p, child_id=child_id, day=day)  # also checks parent owns child
@@ -509,27 +537,27 @@ def create_app(
             week_active_days=wc.active_days,
         )
 
-    @app.post("/redemptions/{redemption_id}/grant", response_model=RedemptionOut)
+    @router.post("/redemptions/{redemption_id}/grant", response_model=RedemptionOut)
     def grant(redemption_id: str, p: ParentScope = Depends(_parent)):
         r = svc.grant_redemption(p, redemption_id=redemption_id)
         return RedemptionOut(id=r.id, reward_id=r.reward_id, state=r.state.value)
 
-    @app.post("/redemptions/{redemption_id}/decline", response_model=RedemptionOut)
+    @router.post("/redemptions/{redemption_id}/decline", response_model=RedemptionOut)
     def decline(redemption_id: str, p: ParentScope = Depends(_parent)):
         r = svc.decline_redemption(p, redemption_id=redemption_id)
         return RedemptionOut(id=r.id, reward_id=r.reward_id, state=r.state.value)
 
     # -- parent: clock (admin; domain calls take no scope) -----
-    @app.post("/clock/materialise")
+    @router.post("/clock/materialise")
     def materialise(body: DayIn, p: ParentScope = Depends(_parent)):
         return {"created": len(svc.materialise_day(body.day))}
 
-    @app.post("/clock/end-of-day")
+    @router.post("/clock/end-of-day")
     def end_of_day(body: DayIn, p: ParentScope = Depends(_parent)):
         return {"expired": len(svc.end_of_day(body.day))}
 
     # -- child: own surface only --------------------------------
-    @app.get("/me/today", response_model=TodayOut)
+    @router.get("/me/today", response_model=TodayOut)
     def me_today(day: date, c: ChildScope = Depends(_child)):
         payload = svc.today(c, child_id=c.child_id, day=day)
         return TodayOut(
@@ -544,19 +572,19 @@ def create_app(
             complexity_profile=payload.complexity_profile,
         )
 
-    @app.post("/me/quests/{quest_id}/complete", response_model=CompletionOut)
+    @router.post("/me/quests/{quest_id}/complete", response_model=CompletionOut)
     def me_complete(quest_id: str, body: NotYetIn, c: ChildScope = Depends(_child)):
         i = svc.submit_completion(c, child_id=c.child_id, quest_id=quest_id,
                                   day=body.day, note=body.note)
         visible = "available" if i.state.value == "not_yet" else i.state.value
         return CompletionOut(quest_id=quest_id, state=visible)
 
-    @app.post("/me/rewards/{reward_id}/redeem", response_model=RedemptionOut)
+    @router.post("/me/rewards/{reward_id}/redeem", response_model=RedemptionOut)
     def me_redeem(reward_id: str, c: ChildScope = Depends(_child)):
         r = svc.redeem_reward(c, child_id=c.child_id, reward_id=reward_id)
         return RedemptionOut(id=r.id, reward_id=r.reward_id, state=r.state.value)
 
-    @app.get("/me/celebrations", response_model=list[CelebrationOut])
+    @router.get("/me/celebrations", response_model=list[CelebrationOut])
     def me_celebrations(since: datetime | None = Depends(_since), c: ChildScope = Depends(_child)):
         return [
             CelebrationOut(quest_id=e.quest_id, on_date=e.on_date,
@@ -564,12 +592,12 @@ def create_app(
             for e in svc.events.celebrations_since(c.child_id, since)
         ]
 
-    @app.put("/account/notifications")
+    @router.put("/account/notifications")
     def set_notifications(body: NotificationsPrefIn, p: ParentScope = Depends(_parent)):
         a = svc.set_account_notifications(p, enabled=body.enabled)
         return {"notifications_enabled": a.notifications_enabled}
 
-    @app.get("/children/{child_id}/notifications", response_model=list[NotificationOut])
+    @router.get("/children/{child_id}/notifications", response_model=list[NotificationOut])
     def child_notifications(child_id: str, since: datetime | None = Depends(_since),
                             p: ParentScope = Depends(_parent)):
         svc._parent_owns_child(p, child_id)
@@ -579,7 +607,7 @@ def create_app(
             if n.child_id == child_id
         ]
 
-    @app.get("/me/progress", response_model=ProgressOut)
+    @router.get("/me/progress", response_model=ProgressOut)
     def me_progress(week_start: date, c: ChildScope = Depends(_child)):
         wc = svc.weekly_consistency(child_id=c.child_id, week_start=week_start)
         return ProgressOut(
@@ -589,4 +617,12 @@ def create_app(
             week_active_days=wc.active_days,
         )
 
+    @router.get("/health", include_in_schema=False)
+    def health():
+        return {"status": "ok", "api": app.version}
+
+    # every API route, served unprefixed (legacy / reference clients) and
+    # under /v1 (the stable base a native client pins).
+    app.include_router(router)
+    app.include_router(router, prefix="/v1")
     return app

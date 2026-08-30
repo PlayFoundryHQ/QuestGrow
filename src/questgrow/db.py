@@ -207,12 +207,18 @@ class _MaterialisedCursor:
 # --------------------------------------------------------------------------- #
 # factory                                                                      #
 # --------------------------------------------------------------------------- #
+def sqlite_path(url: str) -> str:
+    """``sqlite://<path>`` → ``<path>`` (``/abs`` stays absolute, ``rel`` stays
+    relative); ``sqlite://`` / ``sqlite://:memory:`` → ``:memory:``."""
+    rest = url[len("sqlite://"):] if url.startswith("sqlite://") else url
+    return ":memory:" if rest in ("", ":memory:", "/:memory:") else rest
+
+
 def open_database(url: str) -> Database:
-    """``sqlite:///path`` / ``sqlite://:memory:`` / a bare path → SQLite;
-    ``postgres://…`` / ``postgresql://…`` → Postgres."""
+    """``sqlite://<path>`` / a bare path → SQLite; ``postgres://…`` /
+    ``postgresql://…`` → Postgres."""
     if url.startswith(("postgres://", "postgresql://")):
         return PostgresDatabase(url)
     if url.startswith("sqlite://"):
-        rest = url[len("sqlite://"):]
-        return SqliteDatabase(":memory:" if rest in ("", ":memory:", "/:memory:") else rest.lstrip("/"))
+        return SqliteDatabase(sqlite_path(url))
     return SqliteDatabase(url)

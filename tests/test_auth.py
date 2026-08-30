@@ -111,7 +111,7 @@ def test_cross_account_parent_cannot_mint_foreign_child_token(app_ctx):
 def test_secrets_are_hashed_not_plaintext(app_ctx):
     _, _, auth = app_ctx
     auth.signup(email="h@x.com", password="s3cret", pin="4444", account_id="acct-h")
-    acc = auth._by_email["h@x.com"]
+    acc = auth._store.account_by_email("h@x.com")
     assert "s3cret" not in acc.pw_hash and "4444" not in acc.pin_hash
     assert _verify_hash("s3cret", acc.pw_hash) and not _verify_hash("nope", acc.pw_hash)
 

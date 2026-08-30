@@ -50,6 +50,9 @@ class ParentNotification:
 
 
 class EventSink:
+    """In-process sink — the default for tests and the pure-domain path.
+    ``SqlEventSink`` (Phase F) is the restart-safe substrate for a server."""
+
     def __init__(self) -> None:
         self._events: list[CelebrationEvent] = []
         self._parent: list[ParentNotification] = []
@@ -84,3 +87,79 @@ class EventSink:
             n for n in self._parent
             if n.account_id == account_id and (since is None or n.at > since)
         ]
+
+
+class SqlEventSink:
+    """Restart-safe ``EventSink`` backed by ``celebration_event`` /
+    ``parent_notification`` (migration ``0002``). Identical semantics: the
+    child celebration lane records every ``completion.verified``; the parent
+    lane is written only when the caller (the service) decides the account has
+    opted in. Rows are never deleted."""
+
+    def __init__(self, db) -> None:
+        self.db = db
+
+    def _next_seq(self, table: str) -> int:
+        row = self.db.fetchone(f"SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM {table}")
+        return row["n"]
+
+    # -- child celebration lane ---------------------------------
+    def emit_celebration(self, e: CelebrationEvent) -> None:
+        with self.db.transaction():
+            self.db.execute(
+                "INSERT INTO celebration_event (seq, child_id, quest_id, on_date, "
+                "points_awarded, at) VALUES (?, ?, ?, ?, ?, ?)",
+                (self._next_seq("celebration_event"), e.child_id, e.quest_id, e.on_date,
+                 e.points_awarded, e.at.isoformat()),
+            )
+
+    @staticmethod
+    def _cel(r) -> CelebrationEvent:
+        return CelebrationEvent(child_id=r["child_id"], quest_id=r["quest_id"],
+                                on_date=r["on_date"], points_awarded=r["points_awarded"],
+                                at=datetime.fromisoformat(r["at"]))
+
+    def celebrations(self) -> list[CelebrationEvent]:
+        return [self._cel(r) for r in
+                self.db.fetchall("SELECT * FROM celebration_event ORDER BY seq")]
+
+    def celebrations_for(self, child_id: str) -> list[CelebrationEvent]:
+        return [self._cel(r) for r in self.db.fetchall(
+            "SELECT * FROM celebration_event WHERE child_id = ? ORDER BY seq", (child_id,))]
+
+    def celebrations_since(self, child_id: str, since: datetime | None) -> list[CelebrationEvent]:
+        if since is None:
+            return self.celebrations_for(child_id)
+        return [self._cel(r) for r in self.db.fetchall(
+            "SELECT * FROM celebration_event WHERE child_id = ? AND at > ? ORDER BY seq",
+            (child_id, since.isoformat()))]
+
+    # -- parent notification lane -------------------------------
+    def emit_parent_notification(self, n: ParentNotification) -> None:
+        with self.db.transaction():
+            self.db.execute(
+                "INSERT INTO parent_notification (seq, account_id, child_id, kind, text, at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (self._next_seq("parent_notification"), n.account_id, n.child_id, n.kind,
+                 n.text, n.at.isoformat()),
+            )
+
+    @staticmethod
+    def _note(r) -> ParentNotification:
+        return ParentNotification(account_id=r["account_id"], child_id=r["child_id"],
+                                  kind=r["kind"], text=r["text"],
+                                  at=datetime.fromisoformat(r["at"]))
+
+    def parent_notifications(self) -> list[ParentNotification]:
+        return [self._note(r) for r in
+                self.db.fetchall("SELECT * FROM parent_notification ORDER BY seq")]
+
+    def parent_notifications_since(
+        self, account_id: str, since: datetime | None
+    ) -> list[ParentNotification]:
+        if since is None:
+            return [self._note(r) for r in self.db.fetchall(
+                "SELECT * FROM parent_notification WHERE account_id = ? ORDER BY seq", (account_id,))]
+        return [self._note(r) for r in self.db.fetchall(
+            "SELECT * FROM parent_notification WHERE account_id = ? AND at > ? ORDER BY seq",
+            (account_id, since.isoformat()))]

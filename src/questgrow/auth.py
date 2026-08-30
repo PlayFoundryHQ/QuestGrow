@@ -1,23 +1,28 @@
-"""Auth + parent gate (C3).
+"""Auth + parent gate (C3, hardened in Phase F).
 
-The smallest thing that realises the §5 actor matrix as a real session model:
+The session model is unchanged from C3:
 
-* **signup** — email + PBKDF2-hashed password + a PIN (also PBKDF2-hashed).
-  Creates the domain ``Account``.
+* **signup** — email + PBKDF2-hashed password + a PBKDF2-hashed PIN. Creates
+  the domain ``Account``.
 * **login** — email/password → a short-lived *session* token. A session token
-  is **not** a parent scope: it carries the account id but ``resolve`` returns
-  ``None`` for it, so it cannot perform any parent-scope write.
+  is **not** a scope: ``resolve`` returns ``None`` for it.
 * **unlock_parent** — session token + PIN → a short-lived ``ParentScope``
   token. This is the parent gate.
 * **issue_child_token** — a parent (who owns the child) mints a long-lived
-  ``ChildScope`` token for one child. Child tokens are per-child and cannot be
-  escalated: ``resolve`` only ever returns ``ChildScope(child_id)`` for them.
+  per-child ``ChildScope`` token. No escalation path.
 
-Tokens are opaque random strings; the registry is in-memory (single process,
-fine for the MVP acceptance run). ``AuthService.resolve`` is the same seam
-``api.create_app`` already consumes, so the transport layer is unchanged.
+Phase F changes the *substrate*, not the semantics:
 
-Stdlib only — ``hashlib.pbkdf2_hmac``; no argon2 dependency for the MVP.
+* credentials, tokens, and failed-attempt counters live in an ``AuthStore``
+  (``SqlAuthStore`` for a SQL repository — restart-safe and multi-process;
+  ``InMemoryAuthStore`` otherwise);
+* ``login`` / ``unlock_parent`` are rate-limited with a lockout after repeated
+  failures. The limits (``max_attempts`` / ``window_s`` / ``lockout_s``) are
+  **tunable operational defaults**, like ``pending_grace_days`` — not a
+  DECISION, and distinct from the parent-token TTL (the re-challenge cadence,
+  unchanged at 900 s).
+
+Stdlib crypto only — ``hashlib.pbkdf2_hmac``.
 """
 
 from __future__ import annotations
@@ -25,9 +30,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from .auth_store import AuthAccount, AuthToken, InMemoryAuthStore, SqlAuthStore
 from .errors import AuthorizationError, ContractViolation
 from .scope import ChildScope, ParentScope, Scope
 from .service import QuestGrowService
@@ -56,22 +61,6 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-@dataclass
-class _Account:
-    account_id: str
-    email: str
-    pw_hash: str
-    pin_hash: str
-
-
-@dataclass
-class _Token:
-    kind: str            # "session" | "parent" | "child"
-    account_id: str
-    child_id: str | None
-    expires_at: datetime | None
-
-
 class AuthService:
     def __init__(
         self,
@@ -79,39 +68,60 @@ class AuthService:
         *,
         session_ttl_s: int = 600,
         parent_ttl_s: int = 900,
+        store=None,
+        max_attempts: int = 5,      # tunable operational default (abuse protection)
+        window_s: int = 900,
+        lockout_s: int = 900,
     ) -> None:
         self._svc = service
         self._session_ttl = session_ttl_s
         self._parent_ttl = parent_ttl_s
-        self._by_email: dict[str, _Account] = {}
-        self._tokens: dict[str, _Token] = {}
+        self._max_attempts = max_attempts
+        self._window_s = window_s
+        self._lockout_s = lockout_s
+        if store is not None:
+            self._store = store
+        else:
+            db = getattr(getattr(service, "repo", None), "db", None)
+            self._store = SqlAuthStore(db) if db is not None else InMemoryAuthStore()
 
     # -- registration / login ---------------------------------------
     def signup(self, *, email: str, password: str, pin: str, account_id: str | None = None) -> str:
         email = email.strip().lower()
-        if email in self._by_email:
+        if self._store.email_exists(email):
             raise ContractViolation("email already registered")
         if len(pin) < 4:
             raise ContractViolation("pin must be at least 4 digits")
         acc_id = account_id or ("acct_" + secrets.token_hex(6))
-        self._by_email[email] = _Account(acc_id, email, _make_hash(password), _make_hash(pin))
+        self._store.put_account(AuthAccount(acc_id, email, _make_hash(password), _make_hash(pin)))
         self._svc.create_account(acc_id)
         return acc_id
 
     def login(self, *, email: str, password: str) -> str:
-        acc = self._by_email.get(email.strip().lower())
+        email = email.strip().lower()
+        key = f"login:{email}"
+        self._guard(key)
+        acc = self._store.account_by_email(email)
         if acc is None or not _verify_hash(password, acc.pw_hash):
+            self._store.record_failure(key, max_attempts=self._max_attempts,
+                                       window_s=self._window_s, lockout_s=self._lockout_s)
             raise AuthorizationError("bad email or password")
+        self._store.clear_failures(key)
         return self._issue("session", acc.account_id, None, self._session_ttl)
 
     # -- parent gate ----------------------------------------------
     def unlock_parent(self, *, session_token: str, pin: str) -> str:
-        t = self._tokens.get(session_token)
+        t = self._store.get_token(session_token)
         if t is None or t.kind != "session" or self._expired(t):
             raise AuthorizationError("invalid or expired session")
-        acc = next((a for a in self._by_email.values() if a.account_id == t.account_id), None)
+        key = f"unlock:{t.account_id}"
+        self._guard(key)
+        acc = self._store.account_by_id(t.account_id)
         if acc is None or not _verify_hash(pin, acc.pin_hash):
+            self._store.record_failure(key, max_attempts=self._max_attempts,
+                                       window_s=self._window_s, lockout_s=self._lockout_s)
             raise AuthorizationError("incorrect PIN")
+        self._store.clear_failures(key)
         return self._issue("parent", t.account_id, None, self._parent_ttl)
 
     # -- child tokens -------------------------------------------
@@ -124,7 +134,7 @@ class AuthService:
 
     # -- resolution (the api seam) -----------------------------
     def resolve(self, token: str) -> Scope | None:
-        t = self._tokens.get(token)
+        t = self._store.get_token(token)
         if t is None or self._expired(t):
             return None
         if t.kind == "parent":
@@ -134,15 +144,23 @@ class AuthService:
         return None  # a "session" token is deliberately not a scope
 
     def revoke(self, token: str) -> None:
-        self._tokens.pop(token, None)
+        self._store.delete_token(token)
+
+    def purge_expired(self) -> None:
+        self._store.purge_expired()
 
     # -- internals --------------------------------------------
+    def _guard(self, scope_key: str) -> None:
+        until = self._store.locked_until(scope_key)
+        if until is not None and until > _now():
+            raise AuthorizationError("too many attempts — try again later")
+
     def _issue(self, kind: str, account_id: str, child_id: str | None, ttl_s: int | None) -> str:
         tok = kind[0] + "_" + secrets.token_urlsafe(24)
         exp = _now() + timedelta(seconds=ttl_s) if ttl_s is not None else None
-        self._tokens[tok] = _Token(kind, account_id, child_id, exp)
+        self._store.put_token(tok, AuthToken(kind, account_id, child_id, exp))
         return tok
 
     @staticmethod
-    def _expired(t: _Token) -> bool:
+    def _expired(t: AuthToken) -> bool:
         return t.expires_at is not None and _now() >= t.expires_at

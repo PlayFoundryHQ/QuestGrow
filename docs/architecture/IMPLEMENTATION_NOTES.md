@@ -53,9 +53,30 @@ queue in `localStorage`, drops an item on a 409 per INV-11) and `parent.html`
 rewards / ownership + suggestions / progress). Served at `/app/child` and
 `/app/parent`. Full end-to-end acceptance is D1's; `tests/test_webclient.py`
 covers transport wiring + the copy guarantees a source scan can verify.
-**Not yet** implemented: production mobile client, any long-term meta-game. `PARENT_MANAGED` **is** implemented and
-tested (it "remains a valid part of the contract" — DECISION-019) but nothing
-assigns it by default in MVP.
+
+**Phase F — production foundation hardening.** The persistence layer became
+portable (`db.py` + `migrations/` + `sql_repository.py`; SQLite and PostgreSQL,
+migration-managed, restart-safe ids/`seq`). The auth substrate moved out of
+process memory: `auth_store.py` (`SqlAuthStore` / `InMemoryAuthStore`) holds
+credentials, tokens, and failed-attempt counters; `AuthService` derives the
+SQL store from `service.repo.db` automatically, keeping every semantic
+(session ≠ scope, unlock → ParentScope, per-child boundary, TTLs). `login` /
+`unlock` are rate-limited with a lockout after repeated failures —
+`max_attempts` / `window_s` / `lockout_s` are tunable operational defaults
+(5 / 900 s / 900 s), **not a DECISION**, and distinct from the parent-token
+TTL (the re-challenge cadence, unchanged). `EventSink` gained a restart-safe
+sibling `SqlEventSink` (tables in migration `0002`). `config.py`
+(`Settings.from_env` + `build_app`) is the production entrypoint —
+`uvicorn questgrow.asgi:app` — reading `QUESTGROW_DATABASE_URL`, TTLs, abuse
+limits and a CORS allow-list (CORS **off** by default) from the environment.
+Android-facing API additions (all additive / backward-compatible): structured
+error `code`s on every error body, list/detail endpoints
+(`GET /children`, `/children/{id}`, `/quests`, `/rewards`), and every route
+also served under `/v1`.
+
+**Not yet** implemented: production mobile client (Phase G), any long-term
+meta-game. `PARENT_MANAGED` **is** implemented and tested (it "remains a valid
+part of the contract" — DECISION-019) but nothing assigns it by default in MVP.
 
 ## Module → contract map
 
@@ -72,9 +93,10 @@ assigns it by default in MVP.
 | `projections.py` (`lifetime_achievement`, `spendable_balance`, `TodayPayload`, `WeeklyConsistency`, `DailyProgress`) | §7 | INV-8, INV-9, INV-13, INV-16 | AC-8, AC-9 |
 | `adaptation.py` (`ComplexityProfile`, `resolve_complexity_profile`) | §13 | INV-8 (no stage/level field — structural) | — |
 | `repository.py` (`Repository` protocol, `InMemoryRepository`) + `sql_repository.py` (`SqlRepository` → `SqliteRepository` / `PostgresRepository`) + `db.py` + `migrate.py` + `migrations/*.sql` | §10 / TOQ-7; append-only ledger; portable schema; restart-safe ids/seq | INV-1, INV-11, INV-12 | AC-2, AC-12 |
-| `api.py` (`create_app`, `TokenStore`, wire models) | §5 actor matrix at the HTTP boundary; §13 payload | INV-5, INV-8, INV-17, INV-18 | AC-1, AC-2, AC-5, AC-8, AC-9, AC-11, AC-13 |
-| `auth.py` (`AuthService`: signup / login / `unlock_parent` / `issue_child_token` / `resolve`) | §5 (parent gate); ARCHITECTURE "Auth & authorization" | INV-17, INV-18 | AC-5 |
-| `events.py` (`EventSink`, `CelebrationEvent`, `ParentNotification`) + `notifications.py` (templates, `BANNED_SUBSTRINGS`) | §4 `completion.verified`; ARCHITECTURE notification service (opt-in, informational, never child-addressed) | INV-8 (no stage label in event) | AC-1, AC-2, AC-10 |
+| `api.py` (`create_app`, `router` + `/v1` alias, `TokenStore`, structured error `code`s, wire models) | §5 actor matrix at the HTTP boundary; §13 payload | INV-5, INV-8, INV-17, INV-18 | AC-1, AC-2, AC-5, AC-8, AC-9, AC-11, AC-13 |
+| `auth.py` + `auth_store.py` (`AuthService`; `SqlAuthStore` / `InMemoryAuthStore`; rate-limit + lockout) | §5 (parent gate); ARCHITECTURE "Auth & authorization" | INV-17, INV-18 | AC-5 |
+| `events.py` (`EventSink`, `SqlEventSink`, `CelebrationEvent`, `ParentNotification`) + `notifications.py` (templates, `BANNED_SUBSTRINGS`) | §4 `completion.verified`; ARCHITECTURE notification service (opt-in, informational, never child-addressed) | INV-8 (no stage label in event) | AC-1, AC-2, AC-10 |
+| `config.py` (`Settings`, `build_app`) + `asgi.py` | ARCHITECTURE "Stack"; operational config from env, CORS off by default | — | — |
 | `service.py` ownership stage service (`set_ownership_stage`, `advancement_suggestions`, `accept/dismiss`) | §3, §5; DECISION-008/017 | INV-5, INV-6 | AC-3, AC-4, AC-13, AC-15 |
 | `service.py` `materialise_day` / `end_of_day` | §4 `→ expired`; TOQ-7 | INV-6 (sweep never touches stage), INV-16 | AC-14 |
 
@@ -186,10 +208,19 @@ scan.
 `MVP.md` acceptance scenario 1–10, the enforceable cross-cutting requirements,
 and out-of-scope absence checks, all end-to-end on the D1 backend. See
 [`D1_ACCEPTANCE.md`](../product-delivery/D1_ACCEPTANCE.md).
+`tests/test_f_persistence.py` — migration idempotency, full-flow parity, and
+restart-safety (`seq` monotonic, no id collision, state survives) on SQLite
+file DBs and — when `QUESTGROW_TEST_POSTGRES_URL` is set — PostgreSQL.
+`tests/test_f_hardening.py` — auth + token survive a restart, login/unlock
+lockout, `SqlEventSink` feeds survive a restart, structured error codes, the
+`/v1` alias, list/detail endpoints, `build_app` file-DB round-trip, CORS off
+by default.
 
 Run: `python3 -m pytest -q` (from the repo root). The domain + C1 suite needs
-no third-party packages; the API / auth / webclient / integration / D1 suites
-need `fastapi` + `httpx` (use a venv — `.venv/bin/python -m pytest -q`).
+no third-party packages; the API / auth / webclient / integration / D1 / F
+suites need `fastapi` + `httpx` (use a venv — `.venv/bin/python -m pytest -q`).
+Set `QUESTGROW_TEST_POSTGRES_URL` to also exercise the Postgres backend
+(`pip install -e '.[postgres]'` + a reachable server); it is skipped otherwise.
 
 ## Reference web-client notes (C5/C6)
 
@@ -222,12 +253,15 @@ client has nothing stored) via the `_since` dependency — an empty value means
 stored but nothing derives behaviour from it (age band drives
 `complexityProfile`).
 
-## Known implementation gaps (deferred — out of MVP-subsystem scope)
+## Known implementation gaps (deferred)
 
-- Hardened parent-gate challenge (rate-limiting, lockout, re-challenge policy);
-  token + event persistence across restarts (`AuthService` and `EventSink` are
-  in-memory).
-- Real-time celebration delivery (poll only in MVP — ROADMAP Layer 1).
+- **Parent-gate re-challenge cadence** and **whether a refresh token exists**
+  are product decisions the PO has reserved (Phase F escalation candidates
+  that did not need resolving — the current 900 s parent-token TTL is
+  unchanged and forces a PIN re-entry on expiry). Rate-limiting + lockout are
+  implemented (Phase F).
+- Real-time celebration delivery (poll only in MVP — ROADMAP Layer 1); a
+  production co-present push channel is a product/infra decision.
 - Production mobile client (post-D1); a browser/visual QA pass on the two
   reference clients (see `D1_ACCEPTANCE.md` caveats).
 - `PARENT_MANAGED` assignment UX (DECISION-019 — post-MVP).

@@ -21,8 +21,15 @@ from .enums import (
     VerificationBehaviour,
     verification_behaviour,
 )
-from .errors import AuthorizationError, ContractViolation, NotFound, QuestGrowError
-from .events import CelebrationEvent, EventSink
+from .errors import (
+    AuthenticationError,
+    AuthorizationError,
+    BadRequest,
+    ContractViolation,
+    NotFound,
+    QuestGrowError,
+)
+from .events import CelebrationEvent, EventSink, SqlEventSink
 from .adaptation import ComplexityProfile, resolve_complexity_profile
 from .auth import AuthService
 from .db import Database, open_database
@@ -46,6 +53,7 @@ __all__ = [
     "resolve_complexity_profile",
     "AuthService",
     "EventSink",
+    "SqlEventSink",
     "CelebrationEvent",
     "ChildScope",
     "ParentScope",
@@ -61,7 +69,9 @@ __all__ = [
     "RedemptionState",
     "Actor",
     "QuestGrowError",
+    "AuthenticationError",
     "AuthorizationError",
+    "BadRequest",
     "ContractViolation",
     "NotFound",
 ]

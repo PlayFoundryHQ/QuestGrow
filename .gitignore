@@ -10,3 +10,8 @@ dist/
 # Editor / OS
 .obsidian/
 .DS_Store
+
+# stray local artifacts
+/tmp/
+data/
+*.db

@@ -35,6 +35,7 @@ docs/
 │   ├── MVP.md                  The MVP capabilities, cross-cutting requirements, acceptance
 │   ├── D1_ACCEPTANCE.md        The D1 end-to-end MVP acceptance run + readiness verdict
 │   ├── E_READINESS.md          Phase E: browser/UX validation, product-readiness + Android-readiness assessment
+│   ├── DEPLOYMENT.md           Phase F: how to run the backend — env config, migrations, restart-safety
 │   ├── ROADMAP.md              Post-MVP layers and how items enter the roadmap
 │   └── ARCHITECTURE.md         How the system is organised and built (construction)
 │

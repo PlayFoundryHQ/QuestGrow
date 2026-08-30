@@ -894,3 +894,22 @@ class QuestGrowService:
             for inst in self.repo.instances_of(child_id)
             if inst.state is InstanceState.PENDING
         ]
+
+    # ------------------------------------------------------------------ #
+    # parent read models — list/detail (Phase F, Android-facing)         #
+    # ------------------------------------------------------------------ #
+    def list_children(self, parent) -> list[Child]:
+        p = self._require_parent(parent)
+        return self.repo.children_of(p.account_id)
+
+    def get_child_for(self, parent, *, child_id: str) -> Child:
+        p = self._require_parent(parent)
+        return self._parent_owns_child(p, child_id)  # NotFound / AuthorizationError
+
+    def list_quests(self, parent) -> list[Quest]:
+        p = self._require_parent(parent)
+        return self.repo.quests_of(p.account_id)
+
+    def list_rewards(self, parent) -> list[Reward]:
+        p = self._require_parent(parent)
+        return self.repo.rewards_of(p.account_id)
