@@ -246,6 +246,40 @@ class AppFlowTest {
         compose.onNodeWithTag("quests_list", useUnmergedTree = true).assertExists()
     }
 
+    @Test fun cachedToday_whenOffline_showsLastBoardMarkedStale() {
+        openChildToday()                         // online fetch → board is cached
+        server.shutdown()                        // now offline
+        compose.activityRule.scenario.recreate() // relaunch: child token persists → child Today reloads
+        // the last-known board is still shown …
+        awaitContentDescription("Brush teeth")
+        compose.onNodeWithContentDescription("Brush teeth").assertExists()
+        // … explicitly marked as offline / stale, never as a fresh board
+        compose.onNodeWithContentDescription("Offline. Showing your last board.").assertExists()
+    }
+
+    @Test fun parentTabs_navigateBetweenSections() {
+        signInParent()
+        // a distinctive node on each parent sub-tab, proving navigation works
+        mapOf(
+            "tab_Approvals" to "Load queue",
+            "tab_Family" to "Age-adaptation overrides",
+            "tab_Quests" to "One-tap starter templates",
+            "tab_Rewards" to "New reward",
+            "tab_Ownership" to "Set support level for a quest",
+            "tab_Settings" to "Backend server",
+        ).forEach { (tab, marker) ->
+            compose.onNodeWithTag(tab, useUnmergedTree = true).performScrollTo().performClick()
+            compose.waitUntil(5_000) {
+                compose.onAllNodesWithText(marker, substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+        // and back to the first tab
+        compose.onNodeWithTag("tab_Dashboard", useUnmergedTree = true).performScrollTo().performClick()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("Add a child", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     // --------------------------------------------------------------------- #
     /** network responses aren't Espresso idling resources, so poll the tree. */
     private fun awaitContentDescription(text: String) = compose.waitUntil(5_000) {
