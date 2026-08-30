@@ -102,6 +102,14 @@ class QuestGrowApp : Application() {
         container = AppContainer(this)
         container.observeConnectivity(this)
     }
+
+    /** Rebuild the DI graph from current config. Used by instrumented tests to
+     *  retarget the backend URL without a process restart; harmless in prod. */
+    @androidx.annotation.VisibleForTesting
+    fun rebuildContainer() {
+        container = AppContainer(this)
+        container.observeConnectivity(this)
+    }
 }
 
 /**
