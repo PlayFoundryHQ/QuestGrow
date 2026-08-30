@@ -1,0 +1,7 @@
+# keep the build context tiny — only what the image needs
+*
+!pyproject.toml
+!README.md
+!src/
+src/**/__pycache__/
+**/*.pyc
