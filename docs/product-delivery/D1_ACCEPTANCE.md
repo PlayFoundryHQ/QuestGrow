@@ -89,6 +89,14 @@ by a human look or a browser session:
 a reduced-motion OS setting) against a running `uvicorn`, covering items 1–4
 above. This is a Product-Owner / QA activity, not blocked work.
 
+> **Update — Phase E (2026-08-30):** items 1–4 above were subsequently driven
+> and screenshotted in real headless Chrome and are now **VERIFIED** (age-band
+> visual differentiation, celebration render, reduced-motion, offline→reconnect
+> queue flush). Phase E also fixed a celebration-cursor `422`, undersized child
+> touch targets, and the missing parent Family/Settings screens. What remains
+> NOT VERIFIED: audible speech output and a real OS screen-reader pass (headless
+> environment limits). Full detail: [`E_READINESS.md`](./E_READINESS.md).
+
 ---
 
 ## MVP-readiness verdict

@@ -121,6 +121,38 @@ def test_ac5_scope_enforcement(ctx):
     assert r.status_code in (403, 404)
 
 
+def test_e2_empty_since_is_not_a_422(ctx):
+    # E2 finding: a fresh child client has no stored cursor and sends `?since=`
+    client, svc, tokens, ph, ch = ctx
+    svc.set_ownership_stage(__import__("questgrow").ParentScope("acct-1"),
+                            child_id="mia", quest_id="teeth", target=OwnershipStage.CHILD_OWNED)
+    client.post("/clock/materialise", json={"day": DAY}, headers=ph)
+    client.post("/me/quests/teeth/complete", json={"day": DAY}, headers=ch)
+    empty = client.get("/me/celebrations?since=", headers=ch)
+    assert empty.status_code == 200 and len(empty.json()) == 1          # not 422
+    none = client.get("/me/celebrations", headers=ch)
+    assert none.status_code == 200 and len(none.json()) == 1
+    at = empty.json()[0]["at"]
+    after = client.get(f"/me/celebrations?since={at}", headers=ch)
+    assert after.status_code == 200 and after.json() == []             # valid cursor still filters
+    bad = client.get("/me/celebrations?since=not-a-date", headers=ch)
+    assert bad.status_code == 422
+    # same tolerance on the parent notification poll
+    assert client.get("/children/mia/notifications?since=", headers=ph).status_code == 200
+
+
+def test_e2_child_profile_birthdate_and_overrides_round_trip(ctx):
+    client, svc, tokens, ph, ch = ctx
+    r = client.patch("/children/mia", json={
+        "birthdate": "2021-04-15",
+        "adaptation_overrides": {"text_style": "short_sentence", "quests_shown_at_once": "2"},
+    }, headers=ph)
+    assert r.status_code == 200 and r.json()["birthdate"] == "2021-04-15"
+    client.post("/clock/materialise", json={"day": DAY}, headers=ph)
+    prof = client.get(f"/me/today?day={DAY}", headers=ch).json()["complexity_profile"]
+    assert prof["text_style"] == "short_sentence" and prof["quests_shown_at_once"] == 2
+
+
 def test_openapi_child_responses_have_no_stage_or_progress_aggregate(ctx):
     client, *_ = ctx
     schema = client.get("/openapi.json").json()

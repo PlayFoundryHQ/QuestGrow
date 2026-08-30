@@ -64,12 +64,14 @@ class ChildIn(BaseModel):
     name: str
     age_band: str = "5-6"
     avatar: str = ""
+    birthdate: date | None = None
 
 
 class ChildProfileIn(BaseModel):
     name: str | None = None
     avatar: str | None = None
     age_band: str | None = None
+    birthdate: date | None = None
     adaptation_overrides: dict[str, str] | None = None
 
 
@@ -78,6 +80,7 @@ class ChildOut(BaseModel):
     name: str
     age_band: str
     avatar: str
+    birthdate: date | None = None
 
 
 class QuestIn(BaseModel):
@@ -302,6 +305,16 @@ def create_app(
             raise HTTPException(403, "child scope required")
         return scope
 
+    def _since(since: str | None = None) -> datetime | None:
+        """Optional ISO-8601 poll cursor. An empty string means 'no cursor'
+        (a fresh client has nothing stored) — not a 422."""
+        if not since:
+            return None
+        try:
+            return datetime.fromisoformat(since)
+        except ValueError:
+            raise HTTPException(422, "since must be an ISO-8601 timestamp")
+
     @app.exception_handler(AuthorizationError)
     def _auth_err(_req, exc):  # noqa: ANN001
         from fastapi.responses import JSONResponse
@@ -368,19 +381,23 @@ def create_app(
         )
 
     # -- parent: children --------------------------------------------
+    def _child_out(c) -> ChildOut:
+        return ChildOut(child_id=c.child_id, name=c.name, age_band=c.age_band,
+                        avatar=c.avatar, birthdate=c.birthdate)
+
     @app.post("/children", response_model=ChildOut)
     def add_child(body: ChildIn, p: ParentScope = Depends(_parent)):
-        c = svc.add_child(p, child_id=body.child_id, name=body.name,
-                          age_band=body.age_band, avatar=body.avatar)
-        return ChildOut(child_id=c.child_id, name=c.name, age_band=c.age_band, avatar=c.avatar)
+        return _child_out(svc.add_child(p, child_id=body.child_id, name=body.name,
+                                        age_band=body.age_band, avatar=body.avatar,
+                                        birthdate=body.birthdate))
 
     @app.patch("/children/{child_id}", response_model=ChildOut)
     def set_child_profile(child_id: str, body: ChildProfileIn, p: ParentScope = Depends(_parent)):
-        c = svc.set_child_profile(
+        return _child_out(svc.set_child_profile(
             p, child_id=child_id, name=body.name, avatar=body.avatar,
-            age_band=body.age_band, adaptation_overrides=body.adaptation_overrides,
-        )
-        return ChildOut(child_id=c.child_id, name=c.name, age_band=c.age_band, avatar=c.avatar)
+            age_band=body.age_band, birthdate=body.birthdate,
+            adaptation_overrides=body.adaptation_overrides,
+        ))
 
     # -- parent: quests / schedules --------------------------------
     @app.post("/quests", response_model=QuestOut)
@@ -540,7 +557,7 @@ def create_app(
         return RedemptionOut(id=r.id, reward_id=r.reward_id, state=r.state.value)
 
     @app.get("/me/celebrations", response_model=list[CelebrationOut])
-    def me_celebrations(since: datetime | None = None, c: ChildScope = Depends(_child)):
+    def me_celebrations(since: datetime | None = Depends(_since), c: ChildScope = Depends(_child)):
         return [
             CelebrationOut(quest_id=e.quest_id, on_date=e.on_date,
                            points_awarded=e.points_awarded, at=e.at)
@@ -553,7 +570,7 @@ def create_app(
         return {"notifications_enabled": a.notifications_enabled}
 
     @app.get("/children/{child_id}/notifications", response_model=list[NotificationOut])
-    def child_notifications(child_id: str, since: datetime | None = None,
+    def child_notifications(child_id: str, since: datetime | None = Depends(_since),
                             p: ParentScope = Depends(_parent)):
         svc._parent_owns_child(p, child_id)
         return [

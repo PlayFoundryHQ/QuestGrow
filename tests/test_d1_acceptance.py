@@ -313,7 +313,7 @@ def test_cross_accessibility_baseline_present_in_child_client():
     html = (_WEBCLIENT_DIR / "child.html").read_text()
     assert "prefers-reduced-motion" in html                 # reduced-motion
     assert "speechSynthesis" in html and 'aria-label="Hear' in html  # audio narration + labels
-    assert "min-width: 44px" in html or "min-height: 44px" in html   # target size
+    assert "min-width: 64px" in html and "min-height: 64px" in html  # target size (UX_PRINCIPLES ≥64×64pt)
     assert 'class="cue"' in html                            # state as text, not colour alone
 
 

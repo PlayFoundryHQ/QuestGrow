@@ -179,15 +179,32 @@ need `fastapi` + `httpx` (use a venv — `.venv/bin/python -m pytest -q`).
 
 `webclient/child.html` and `webclient/parent.html` are thin static single-file
 clients over the C2–C4 API, served at `/app/child` and `/app/parent`. They are
-the D1 reference clients, not the production track.
+the D1 reference clients, not the production track. Both were driven and
+screenshotted in a real headless Chrome during Phase E — see
+[`E_READINESS.md`](../product-delivery/E_READINESS.md).
 
-Accessibility baseline in `child.html`: `@media (prefers-reduced-motion)`
-disables the celebration animation; tap-to-hear via `speechSynthesis` (Web
-Speech API — no dependency, silent where unavailable) with `aria-label`s, plus
-`audio_narration: "always"` auto-reads the day's quests; instance state is
-shown as text + glyph (`✓ done` / `⏳ waiting`), never colour alone; interactive
-controls are ≥44px. Exact 64pt target sizing, contrast ratios, and a
-screen-reader pass are design/QA items, not asserted in tests.
+`child.html` accessibility: `@media (prefers-reduced-motion)` disables the
+celebration animation (verified: `.celebrate .burst` computed
+`animation-name` → `none` under `reduce`); tap-to-hear via `speechSynthesis`
+(Web Speech API — no dependency, silent where unavailable) with `aria-label`s,
+plus `audio_narration: "always"` auto-reads the day's quests; instance state
+shown as text + glyph (`✓ done` / `⏳ waiting`), never colour alone;
+interactive controls ≥64×64pt (`.say` button; UX_PRINCIPLES). Body/label text
+is `#001858` on `#fef6e4` (~13:1). The celebration animation runs ~1.6s
+(UX_PRINCIPLES "bounded 1–3s").
+
+`parent.html` covers the full UX_PRINCIPLES parent screen inventory:
+Dashboard, Approvals, **Family** (child profile — name / age band / birthdate —
+and per-dimension age-adaptation overrides), Quests (+ one-tap starter
+templates), Rewards, Ownership (+ advancement suggestions), Progress,
+**Settings** (notifications opt-in, parent-gate note, sign out).
+
+API note: optional poll cursors (`?since=`) tolerate an empty string (a fresh
+client has nothing stored) via the `_since` dependency — an empty value means
+"no cursor", not a 422. `ChildIn` / `ChildProfileIn` / `ChildOut` carry
+`birthdate` (MVP feature area 1/11 — "birthdate or explicit age band"); it is
+stored but nothing derives behaviour from it (age band drives
+`complexityProfile`).
 
 ## Known implementation gaps (deferred — out of MVP-subsystem scope)
 

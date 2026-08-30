@@ -88,6 +88,19 @@ def test_parent_client_has_gate_and_batch_approve():
     assert "suggestion/accept" in PARENT_HTML and "suggestion/dismiss" in PARENT_HTML
 
 
+def test_parent_client_covers_the_mvp_screen_inventory():
+    # UX_PRINCIPLES parent screen inventory: dashboard, approvals, children, quests,
+    # rewards, progress, settings (+ ownership).
+    for view in ("dashboard", "approvals", "family", "quests", "rewards", "ownership",
+                 "progress", "settings"):
+        assert f'"{view}"' in PARENT_HTML, view
+    assert "adaptation_overrides" in PARENT_HTML          # per-dimension age overrides
+    assert "/account/notifications" in PARENT_HTML        # notifications opt-in control
+    assert "birthdate" in PARENT_HTML                     # birthdate OR age band
+    # no dead endpoint calls
+    assert 'api("/children")' not in PARENT_HTML
+
+
 def test_child_client_consumes_complexity_profile():
     for field in ("complexity_profile", "quests_shown_at_once", "text_style", "reward_presentation"):
         assert field in CHILD_HTML, field

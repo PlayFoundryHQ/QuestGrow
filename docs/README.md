@@ -34,6 +34,7 @@ docs/
 ├── product-delivery/       WHAT gets built, and when
 │   ├── MVP.md                  The MVP capabilities, cross-cutting requirements, acceptance
 │   ├── D1_ACCEPTANCE.md        The D1 end-to-end MVP acceptance run + readiness verdict
+│   ├── E_READINESS.md          Phase E: browser/UX validation, product-readiness + Android-readiness assessment
 │   ├── ROADMAP.md              Post-MVP layers and how items enter the roadmap
 │   └── ARCHITECTURE.md         How the system is organised and built (construction)
 │

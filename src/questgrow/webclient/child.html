@@ -22,9 +22,10 @@
   .card .cue { margin-top: 6px; font-size: 14px; font-weight: 700; }  /* state as text+glyph, never colour alone */
   .card.pending { border-color: #8bd3dd; }
   .card.verified { border-color: #7cc47c; opacity: .7; }
-  .card .say { position: absolute; top: 6px; right: 8px; font-size: 20px; background: none;
-               border: none; cursor: pointer; min-width: 44px; min-height: 44px; }
-  .card { position: relative; }
+  .card .say { position: absolute; top: 2px; right: 2px; font-size: 24px; background: none;
+               border: none; cursor: pointer; min-width: 64px; min-height: 64px;
+               display: flex; align-items: center; justify-content: center; border-radius: 16px; }
+  .card { position: relative; padding-top: 40px; }
   .hide-label .label { display: none; }
   .bigbtn { display: block; width: 100%; padding: 26px; font-size: 24px; font-weight: 800;
             border: none; border-radius: 26px; background: #f582ae; color: #fff; cursor: pointer; }
@@ -32,10 +33,18 @@
              cursor: pointer; font-weight: 600; }
   .waiting { text-align: center; font-size: 20px; padding: 40px 12px; color: #5a6a8a; }
   .celebrate { text-align: center; padding: 48px 12px; }
-  .celebrate .burst { font-size: 84px; animation: pop .5s ease-out; }
-  .celebrate .pts { font-size: 22px; font-weight: 800; margin-top: 10px; }
-  @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .celebrate .burst { animation: none; } }
+  .celebrate .burst { font-size: 96px; animation: pop 1.6s ease-out both; }
+  .celebrate .pts { font-size: 22px; font-weight: 800; margin-top: 10px; animation: fadein .6s ease-out .5s both; }
+  @keyframes pop {
+    0%   { transform: scale(.3) rotate(-8deg); opacity: 0; }
+    35%  { transform: scale(1.15) rotate(4deg); opacity: 1; }
+    60%  { transform: scale(.95) rotate(-2deg); }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .celebrate .burst, .celebrate .pts { animation: none; opacity: 1; transform: none; }
+  }
   .week { display: flex; gap: 8px; justify-content: center; margin: 20px 0; }
   .week .u { width: 34px; height: 34px; border-radius: 10px; background: #ece0c6; }
   .week .u.on { background: #f9bc60; }
@@ -146,7 +155,8 @@ async function showCelebration() {
   const since = localStorage.getItem(LS.seen) || "";
   let ev = null;
   try {
-    const evs = await api(`/me/celebrations?since=${encodeURIComponent(since)}`);
+    const qs = since ? `?since=${encodeURIComponent(since)}` : "";
+    const evs = await api(`/me/celebrations${qs}`);
     ev = evs[evs.length - 1] || null;
     if (ev) localStorage.setItem(LS.seen, ev.at);
   } catch {}

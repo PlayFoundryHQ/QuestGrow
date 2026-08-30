@@ -46,9 +46,12 @@ const S = { session: "", token: sessionStorage.getItem("qg.parent.token") || "",
 const root = document.getElementById("root");
 const nav = document.getElementById("nav");
 const VIEWS = [
-  ["dashboard", "Dashboard"], ["approvals", "Approvals"], ["quests", "Quests"],
-  ["rewards", "Rewards"], ["ownership", "Ownership"], ["progress", "Progress"],
+  ["dashboard", "Dashboard"], ["approvals", "Approvals"], ["family", "Family"],
+  ["quests", "Quests"], ["rewards", "Rewards"], ["ownership", "Ownership"],
+  ["progress", "Progress"], ["settings", "Settings"],
 ];
+const ADAPT_DIMS = ["text_style", "audio_narration", "iconography", "quests_shown_at_once",
+  "interaction", "task_complexity", "reading_requirement", "reward_presentation"];
 const today = () => new Date().toISOString().slice(0, 10);
 const monday = () => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
 
@@ -98,12 +101,9 @@ function renderGate(msg) {
 }
 
 // ---------- shared ----------
-async function children() { try { return await api("/children"); } catch { return childCache; } }
-let childCache = [];
 async function childPicker(id = "childpick") {
   // there is no list endpoint in the reference API; operator enters child ids they created.
   const saved = JSON.parse(localStorage.getItem("qg.parent.children") || "[]");
-  childCache = saved;
   return `<label>Child id <input id="${id}" list="kids" value="${saved[0] || ""}"></label>
     <datalist id="kids">${saved.map(c => `<option value="${c}">`).join("")}</datalist>`;
 }
@@ -282,6 +282,68 @@ async function renderOwnership() {
   load();
 }
 
+// ---------- family (child profiles + age adaptation) ----------
+async function renderFamily() {
+  root.innerHTML = `<h2>Family</h2>
+    <div class="card"><h3>Child profile</h3>${await childPicker("fc")}
+      <label>Name <input id="fnm"></label>
+      <label>Age band <select id="fab"><option value="">— keep —</option>
+        <option>3-4</option><option>5-6</option><option>7-8</option></select></label>
+      <label>Birthdate (optional) <input id="fbd" type="date"></label>
+      <button class="act" id="fsave">Save profile</button>
+      <p class="muted">Age band sets the default rendering; birthdate is stored coarsely if you prefer.</p>
+    </div>
+    <div class="card"><h3>Age-adaptation overrides</h3>
+      <p class="muted">Leave blank to use the age-band default for that dimension.</p>
+      ${ADAPT_DIMS.map(d => `<label>${d.replace(/_/g, " ")}
+        <input id="ov_${d}" placeholder="(band default)"></label>`).join("")}
+      <button class="act" id="ovsave">Save overrides</button>
+      <p id="fmsg" class="muted"></p>
+    </div>`;
+  document.getElementById("fsave").onclick = async () => {
+    const cid = document.getElementById("fc").value.trim(); rememberChild(cid);
+    const body = {};
+    if (fnm.value) body.name = fnm.value;
+    if (fab.value) body.age_band = fab.value;
+    if (fbd.value) body.birthdate = fbd.value;
+    await api(`/children/${cid}`, { method: "PATCH", body: JSON.stringify(body) });
+    document.getElementById("fmsg").textContent = "Profile saved.";
+  };
+  document.getElementById("ovsave").onclick = async () => {
+    const cid = document.getElementById("fc").value.trim(); rememberChild(cid);
+    const ov = {};
+    ADAPT_DIMS.forEach(d => { const v = document.getElementById("ov_" + d).value.trim(); if (v) ov[d] = v; });
+    await api(`/children/${cid}`, { method: "PATCH", body: JSON.stringify({ adaptation_overrides: ov }) });
+    document.getElementById("fmsg").textContent =
+      Object.keys(ov).length ? `Saved ${Object.keys(ov).length} override(s).` : "Overrides cleared.";
+  };
+}
+
+// ---------- settings ----------
+async function renderSettings() {
+  root.innerHTML = `<h2>Settings</h2>
+    <div class="card"><h3>Notifications</h3>
+      <p class="muted">Off by default. Informational only — never loss-framed, never sent to the child.</p>
+      <label><input type="checkbox" id="notif" style="width:auto"> Send me a quiet note when a completion is verified</label>
+      <button class="act" id="nsave">Save</button>
+      <p id="smsg" class="muted"></p>
+    </div>
+    <div class="card"><h3>Parent gate</h3>
+      <p class="muted">The PIN is required every session. It is set at account creation; changing it is post-MVP.</p>
+    </div>
+    <div class="card"><h3>Session</h3>
+      <button class="act sec" id="signout">Sign out</button>
+    </div>`;
+  document.getElementById("nsave").onclick = async () => {
+    await api("/account/notifications", { method: "PUT",
+      body: JSON.stringify({ enabled: document.getElementById("notif").checked }) });
+    document.getElementById("smsg").textContent = "Saved.";
+  };
+  document.getElementById("signout").onclick = () => {
+    sessionStorage.removeItem("qg.parent.token"); S.token = ""; renderGate("Signed out.");
+  };
+}
+
 // ---------- progress ----------
 async function renderProgress() {
   root.innerHTML = `<h2>Progress</h2><div class="card">${await childPicker("pc")}<button class="act" id="load">Load</button><div id="pv"></div></div>`;
@@ -298,7 +360,9 @@ async function renderProgress() {
 }
 
 // ---------- shell ----------
-const RENDER = { dashboard: renderDashboard, approvals: renderApprovals, quests: renderQuests, rewards: renderRewards, ownership: renderOwnership, progress: renderProgress };
+const RENDER = { dashboard: renderDashboard, approvals: renderApprovals, family: renderFamily,
+  quests: renderQuests, rewards: renderRewards, ownership: renderOwnership,
+  progress: renderProgress, settings: renderSettings };
 async function go(view) {
   S.view = view;
   nav.hidden = false;
