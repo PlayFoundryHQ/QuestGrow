@@ -75,7 +75,8 @@
 
     <!-- parent home -->
     <string name="parent_home">خانه</string>
-    <string name="parent_child_line">%1$s: %2$s انجام شد · %3$s منتظر تأیید</string>
+    <string name="parent_done_line">%1$s انجام شد</string>
+    <string name="parent_pending_line">%1$s منتظر تأیید</string>
     <string name="parent_approvals">تأییدها</string>
     <string name="parent_approvals_empty">چیزی منتظر نیست — همه‌چیز به‌روز است.</string>
     <string name="parent_approve">تأیید</string>

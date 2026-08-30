@@ -26,7 +26,7 @@ data class ChildDashboard(val child: ChildProfile, val summary: Dashboard?)
 data class ParentState(
     val signedIn: Boolean = false,
     val busy: Boolean = false,
-    /** transient one-shot action feedback ("Saved.", "Created.") — auto-cleared. */
+    /** transient one-shot action feedback ("ذخیره شد.", "Created.") — auto-cleared. */
     val message: String? = null,
     // per-section load state (Phase J)
     val family: Loadable<List<ChildDashboard>> = Loadable.Idle,
@@ -58,9 +58,9 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
     /** for one-shot *actions* (create / edit / approve …) — keeps the transient message model. */
     private fun <T> action(r: ApiResult<T>, ok: (T) -> Unit) = when (r) {
         is ApiResult.Ok -> ok(r.value)
-        is ApiResult.Offline -> msg("You're offline — not saved.")
+        is ApiResult.Offline -> msg("آفلاین — ذخیره نشد.")
         is ApiResult.Failure ->
-            if (r.isAuthExpired) set { it.copy(signedIn = false, message = "Session expired — sign in again.") }
+            if (r.isAuthExpired) set { it.copy(signedIn = false, message = "نشست تمام شد — دوباره وارد شوید.") }
             else msg(r.detail.ifBlank { r.code })
     }
 
@@ -73,16 +73,16 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
                 is ApiResult.Ok -> { set { it.copy(signedIn = true, busy = false) }; refreshFamily() }
                 is ApiResult.Failure -> set {
                     it.copy(busy = false, message =
-                        if (r.status == 403) "Wrong email, password or PIN — or too many attempts."
+                        if (r.status == 403) "رمز اشتباه است — یا تلاش زیاد بوده."
                         else r.detail.ifBlank { r.code })
                 }
-                is ApiResult.Offline -> set { it.copy(busy = false, message = "You're offline.") }
+                is ApiResult.Offline -> set { it.copy(busy = false, message = "آفلاین هستید.") }
             }
         }
     }
 
     fun signUp(email: String, password: String, pin: String) = viewModelScope.launch {
-        action(container.authRepo.signUp(email, password, pin)) { msg("Account created — now sign in.") }
+        action(container.authRepo.signUp(email, password, pin)) { msg("حساب ساخته شد.") }
     }
 
     fun signOut() = viewModelScope.launch { container.authRepo.signOutParent(); set { ParentState() } }
@@ -110,12 +110,12 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun addChild(childId: String, name: String, ageBand: String) = viewModelScope.launch {
-        action(repo.addChild(childId, name, ageBand)) { msg("Child added."); refreshFamily() }
+        action(repo.addChild(childId, name, ageBand)) { msg("کودک اضافه شد."); refreshFamily() }
     }
 
     fun editChild(id: String, name: String?, ageBand: String?, birthdate: String?, overrides: Map<String, String>?) =
         viewModelScope.launch {
-            action(repo.editChild(id, name, ageBand, birthdate, overrides)) { msg("Saved."); refreshFamily() }
+            action(repo.editChild(id, name, ageBand, birthdate, overrides)) { msg("ذخیره شد."); refreshFamily() }
         }
 
     fun issueChildCode(childId: String) = viewModelScope.launch {
@@ -128,16 +128,16 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { val r = repo.quests(); set { it.copy(quests = r.toLoadable { q -> q }) } }
     }
     fun createQuest(id: String, title: String, icon: String, points: Int, recurrence: String) = viewModelScope.launch {
-        action(repo.createQuest(id, title, icon, points, recurrence)) { msg("Quest created."); loadQuests() }
+        action(repo.createQuest(id, title, icon, points, recurrence)) { msg("روتین ساخته شد."); loadQuests() }
     }
     fun editQuest(id: String, title: String?, points: Int?, archived: Boolean?) = viewModelScope.launch {
-        action(repo.editQuest(id, title, points, archived)) { msg("Saved."); loadQuests() }
+        action(repo.editQuest(id, title, points, archived)) { msg("ذخیره شد."); loadQuests() }
     }
     fun seedStarters() = viewModelScope.launch {
-        action(repo.seedStarters()) { msg("Starter templates added."); loadQuests() }
+        action(repo.seedStarters()) { msg("روتین‌های آماده اضافه شد."); loadQuests() }
     }
     fun assign(childId: String, questId: String) = viewModelScope.launch {
-        action(repo.assign(childId, questId)) { msg("Assigned.") }
+        action(repo.assign(childId, questId)) { msg("اختصاص داده شد.") }
     }
 
     // ---- rewards ----
@@ -146,7 +146,7 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { val r = repo.rewards(); set { it.copy(rewards = r.toLoadable { rw -> rw }) } }
     }
     fun createReward(id: String, name: String, icon: String, cost: Int, mode: String) = viewModelScope.launch {
-        action(repo.createReward(id, name, icon, cost, mode)) { msg("Reward created."); loadRewards() }
+        action(repo.createReward(id, name, icon, cost, mode)) { msg("جایزه ساخته شد."); loadRewards() }
     }
 
     // ---- approvals ----
@@ -158,11 +158,11 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
         action(repo.approve(childId, a.questId, a.onDate)) { loadApprovals(childId); loadDashboard(childId) }
     }
     fun notYet(childId: String, a: Approval) = viewModelScope.launch {
-        action(repo.notYet(childId, a.questId, a.onDate)) { msg("Sent back — no penalty."); loadApprovals(childId) }
+        action(repo.notYet(childId, a.questId, a.onDate)) { msg("برگشت داده شد — بدون جریمه."); loadApprovals(childId) }
     }
     fun approveAll(childId: String) = viewModelScope.launch {
         action(repo.approveAll(childId, _state.value.approvalItems)) {
-            msg("Approved $it."); loadApprovals(childId); loadDashboard(childId)
+            msg("$it تأیید شد."); loadApprovals(childId); loadDashboard(childId)
         }
     }
 
@@ -179,15 +179,15 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
     }
     fun setOwnership(childId: String, questId: String, stage: OwnershipStage) = viewModelScope.launch {
         action(repo.setOwnership(childId, questId, stage)) { plan ->
-            msg(if (plan.direction == "regress") "Moved to more support — a normal adjustment." else "Updated.")
+            msg(if (plan.direction == "regress") "به کمکِ بیشتر منتقل شد — یک تنظیم عادی." else "به‌روزرسانی شد.")
         }
     }
 
     fun materialiseToday(childId: String) = viewModelScope.launch {
-        action(repo.materialise(today())) { msg("Today's quests are ready."); loadDashboard(childId) }
+        action(repo.materialise(today())) { msg("روتین‌های امروز آماده شد."); loadDashboard(childId) }
     }
     fun setNotifications(enabled: Boolean) = viewModelScope.launch {
-        action(repo.setNotifications(enabled)) { msg(if (it) "Notifications on." else "Notifications off.") }
+        action(repo.setNotifications(enabled)) { msg(if (it) "اعلان‌ها روشن شد." else "اعلان‌ها خاموش شد.") }
     }
 
     fun clearMessage() = msg(null)
