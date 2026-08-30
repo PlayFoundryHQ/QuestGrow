@@ -492,6 +492,38 @@ it.
   decided; long-term product-identity aspect stays open).
 - **Related GitHub issues:** #17, #7
 
+### DECISION-020 — Initial language is Persian (Farsi); the client is RTL, Persian-only
+
+- **Status:** Accepted
+- **Date:** 2026-08-30
+- **Decision:** QuestGrow's initial (and, for now, only) language is **Persian**.
+  The Android client UI is **right-to-left**, all user-facing text is Persian,
+  kid-facing numerals are Persian digits (۰۱۲۳…), and tap-to-hear narration
+  uses a Persian TTS voice (the operator's device provides one, e.g. AvaCore).
+  There is no in-app English toggle. `MVP.md` already scopes the MVP to a
+  single language and defers further localization; this decision fixes *which*
+  language and commits the layout to RTL.
+- **Why:** The product owner and the intended families are Persian-speaking.
+  An English UI is unusable for the actual audience; a bilingual toggle is
+  scope and complexity with no user today. RTL + a Persian-first string set is
+  simplest as the base rather than an overlay.
+- **Consequences:** All strings live in `res/values/strings.xml` in Persian
+  (no `values-en/`); a Persian webfont (Vazirmatn) is bundled; the app forces
+  `fa` + RTL at the root regardless of device locale; `Narrator` selects a
+  Persian TTS engine and degrades to the visible label if none is present
+  (which is then a **NOT VERIFIED** for audible output, not a failure). The
+  backend `/v1` contract, all domain semantics, and every prior decision are
+  unchanged — this is a client-presentation decision. The **reference web
+  clients are retired as a product surface** (kept only as a QA/contract tool,
+  not localized). Adding a second language later is a fresh decision.
+- **Related principles:** #1, #2, #23
+- **Affected documents:**
+  [DESIGN_PRINCIPLES](../experience/DESIGN_PRINCIPLES.md),
+  [UX_PRINCIPLES](../experience/UX_PRINCIPLES.md),
+  [MVP](../product-delivery/MVP.md) (single-language scope — now named),
+  [android/README.md](../../android/README.md)
+- **Related GitHub issues:** —
+
 ---
 
 ## Reserved for future entries

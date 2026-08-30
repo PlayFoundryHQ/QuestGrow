@@ -17,6 +17,7 @@ import hq.playfoundry.questgrow.data.local.TokenStore
 import hq.playfoundry.questgrow.data.net.ApiClientFactory
 import hq.playfoundry.questgrow.data.net.QuestGrowApi
 import hq.playfoundry.questgrow.data.net.TokenProvider
+import hq.playfoundry.questgrow.ui.persianRtl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -96,6 +97,9 @@ class AppContainer(context: Context) {
 class QuestGrowApp : Application() {
     lateinit var container: AppContainer
         private set
+
+    override fun attachBaseContext(base: Context) =
+        super.attachBaseContext(base.persianRtl())   // Persian-only, RTL — DECISION-020
 
     override fun onCreate() {
         super.onCreate()

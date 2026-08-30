@@ -1,3 +1,143 @@
 <resources>
+    <!-- QuestGrow — Persian (Farsi), RTL. DECISION-020. This is the base string
+         set; there is no values-en. Keep entries grouped by surface. -->
+
     <string name="app_name">QuestGrow</string>
+
+    <!-- shared -->
+    <string name="back">بازگشت</string>
+    <string name="retry">تلاش دوباره</string>
+    <string name="save">ذخیره</string>
+    <string name="cancel">انصراف</string>
+    <string name="offline_line">آفلاین — الان نمی‌شود این را بارگذاری کرد.</string>
+    <string name="grownups">بزرگترها</string>
+    <string name="err_generic">مشکلی پیش آمد</string>
+    <string name="err_session_expired">نشست تمام شد — دوباره وارد شوید.</string>
+
+    <!-- content descriptions -->
+    <string name="cd_open_kid">باز کردن صفحهٔ کودک</string>
+    <string name="cd_open_parent">باز کردن صفحهٔ بزرگترها</string>
+    <string name="cd_hear">شنیدن %1$s</string>
+    <string name="cd_i_did">%1$s را انجام دادم</string>
+    <string name="cd_offline_board">آفلاین. تخته‌ی قبلی نشان داده می‌شود.</string>
+
+    <!-- onboarding -->
+    <string name="onb_account_title">یک حساب بسازید</string>
+    <string name="onb_email">ایمیل</string>
+    <string name="onb_password">رمز عبور</string>
+    <string name="onb_pin">رمز والد (۴ رقم)</string>
+    <string name="onb_pin_help">این رمز، در والد را باز می‌کند. هر بار لازم است.</string>
+    <string name="onb_create_account">ساختن حساب</string>
+    <string name="onb_have_account">قبلاً حساب دارم</string>
+    <string name="onb_child_title">کودک‌تان را اضافه کنید</string>
+    <string name="onb_child_name">اسم</string>
+    <string name="onb_child_age">چند ساله است؟</string>
+    <string name="age_3_4">۳ تا ۴ سال</string>
+    <string name="age_5_6">۵ تا ۶ سال</string>
+    <string name="age_7_8">۷ تا ۸ سال</string>
+    <string name="onb_routines_title">چند روتین انتخاب کنید</string>
+    <string name="onb_routines_help">همیشه می‌توانید بعداً کم و زیاد کنید.</string>
+    <string name="onb_finish">تمام</string>
+    <string name="onb_done_title">آماده است!</string>
+    <string name="onb_hand_device">حالا گوشی را به کودک‌تان بدهید</string>
+    <string name="onb_go_board">رفتن به تختهٔ کودک</string>
+
+    <!-- parent gate -->
+    <string name="gate_title">رمز والد را وارد کنید</string>
+    <string name="gate_wrong">رمز اشتباه است</string>
+
+    <!-- returning sign-in (recovery) -->
+    <string name="signin_title">ورود</string>
+    <string name="signin_unlock">باز کردن در والد</string>
+    <string name="signin_wrong">ایمیل، رمز عبور یا رمز والد اشتباه است — یا تلاش زیاد بوده.</string>
+
+    <!-- kid board -->
+    <string name="kid_all_done">آفرین! همهٔ کارهای امروز تمام شد 🌟</string>
+    <string name="kid_queued">%1$s تا در صف ارسال</string>
+    <string name="kid_offline_banner">📴 آفلاینی — تختهٔ قبلی‌ات را نشان می‌دهم</string>
+    <string name="state_waiting">⏳ منتظر</string>
+    <string name="state_done">✓ انجام شد</string>
+    <string name="kid_hear">🔊 بشنو</string>
+    <string name="kid_i_did_it">انجام دادم!</string>
+    <string name="kid_back_to_today">برگشت به امروز</string>
+    <string name="kid_waiting_title">👍 تمام شد — منتظر بزرگترت باش</string>
+    <string name="kid_progress">پیشرفت</string>
+    <string name="kid_week_days">این هفته %1$s اومدی</string>
+    <string name="kid_stars">ستاره‌ها</string>
+    <string name="kid_to_spend">برای خرج کردن: %1$s</string>
+    <string name="kid_this_week">این هفته</string>
+    <string name="err_offline_child">آفلاینی. کد بزرگترت کمک می‌کند وقتی دوباره وصل شدی کارهایت را انجام بدهی.</string>
+
+    <!-- kid device pairing (L6) -->
+    <string name="code_ask">کد را از بزرگترت بپرس</string>
+    <string name="code_field">کد</string>
+    <string name="code_start">شروع</string>
+
+    <!-- parent home -->
+    <string name="parent_home">خانه</string>
+    <string name="parent_child_line">%1$s: %2$s انجام شد · %3$s منتظر تأیید</string>
+    <string name="parent_approvals">تأییدها</string>
+    <string name="parent_approvals_empty">چیزی منتظر نیست — همه‌چیز به‌روز است.</string>
+    <string name="parent_approve">تأیید</string>
+    <string name="parent_not_yet">هنوز نه</string>
+    <string name="parent_approve_all">تأیید همه (%1$s)</string>
+    <string name="parent_not_yet_note">به کودک هیچ علامت منفی نمی‌رسد.</string>
+
+    <!-- parent setup nav -->
+    <string name="nav_children">کودکان</string>
+    <string name="nav_routines">روتین‌ها</string>
+    <string name="nav_rewards">جایزه‌ها</string>
+    <string name="nav_ownership">واگذاری مسئولیت</string>
+    <string name="nav_settings">تنظیمات</string>
+
+    <!-- routines -->
+    <string name="routine_add">روتین تازه</string>
+    <string name="routine_title">عنوان</string>
+    <string name="routine_icon">تصویر</string>
+    <string name="routine_points">امتیاز</string>
+    <string name="routine_recurrence">تکرار</string>
+    <string name="routine_starters">روتین‌های آماده</string>
+    <string name="routine_create">ساختن</string>
+    <string name="routine_assign_title">دادن روتین به کودک</string>
+    <string name="routine_assign">اختصاص</string>
+    <string name="routines_empty">هنوز روتینی نیست — یکی بسازید یا از آماده‌ها بردارید.</string>
+
+    <!-- rewards -->
+    <string name="reward_add">جایزهٔ تازه</string>
+    <string name="reward_name">نام</string>
+    <string name="reward_cost">هزینه</string>
+    <string name="reward_redeem">نحوهٔ دریافت</string>
+    <string name="reward_redeem_self">خودِ کودک</string>
+    <string name="reward_redeem_parent">با تأیید والد</string>
+    <string name="reward_create">ساختن</string>
+    <string name="rewards_empty">هنوز جایزه‌ای نیست — یکی بسازید.</string>
+
+    <!-- ownership -->
+    <string name="ownership_support_title">میزان کمک برای یک روتین</string>
+    <string name="ownership_most">بیشترین کمک — با هم انجام بدهید</string>
+    <string name="ownership_guided">راهنمایی‌شده — شما بررسی می‌کنید</string>
+    <string name="ownership_leads">کودک جلو می‌افتد — بدون بررسی</string>
+    <string name="ownership_owns">کودک خودش انجام می‌دهد</string>
+    <string name="ownership_update">به‌روزرسانی</string>
+    <string name="ownership_note">رفتن به کمکِ بیشتر یک تنظیم عادی است، نه عقب‌گرد.</string>
+    <string name="ownership_suggestions">پیشنهادهای پیشرفت</string>
+    <string name="ownership_accept">آره، امتحان کنیم</string>
+    <string name="ownership_dismiss">بعداً بپرس</string>
+
+    <!-- settings -->
+    <string name="settings_notifs">اعلان‌ها</string>
+    <string name="settings_notifs_help">به‌طور پیش‌فرض خاموش. فقط اطلاع‌رسانی — هیچ‌وقت با لحن منفی، هیچ‌وقت برای کودک.</string>
+    <string name="settings_notif_verified">یادداشت آرام وقتی یک کار تأیید شد</string>
+    <string name="settings_gate">در والد</string>
+    <string name="settings_gate_help">رمز هر بار لازم است. موقع ساختن حساب تعیین می‌شود.</string>
+    <string name="settings_backend">سرور</string>
+    <string name="settings_backend_help">این دستگاه به کدام سرور QuestGrow وصل است.</string>
+    <string name="settings_backend_url">آدرس سرور</string>
+    <string name="settings_save_restart">ذخیره و راه‌اندازی دوباره</string>
+    <string name="settings_session">حساب</string>
+    <string name="settings_signout">خروج</string>
+    <string name="settings_forget">پاک کردن این دستگاه</string>
+    <string name="settings_child_code">کد ورود کودک</string>
+    <string name="settings_create_code">ساختن کد</string>
+    <string name="code_created">کد: %1$s</string>
 </resources>
