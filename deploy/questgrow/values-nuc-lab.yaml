@@ -3,7 +3,7 @@
 
 image:
   repository: ghcr.io/playfoundryhq/questgrow
-  tag: "0.6.0"
+  tag: "0.6.1"
 
 persistence:
   enabled: true
