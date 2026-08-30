@@ -164,17 +164,39 @@ streak/downgrade/failure/"% owned" framing in either, child client calls only
 immediately, opt-out suppresses the parent feed but not the child celebration,
 runtime toggle, `since=` filter, template banned-phrase + no-second-person
 scan.
+`tests/test_integration_mvp.py` — one full-stack scenario over
+`AuthService` + FastAPI + `SqliteRepository` walking MVP feature areas 1–12.
+`tests/test_d1_acceptance.py` — **the D1 acceptance run**: one test per
+`MVP.md` acceptance scenario 1–10, the enforceable cross-cutting requirements,
+and out-of-scope absence checks, all end-to-end on the D1 backend. See
+[`D1_ACCEPTANCE.md`](../product-delivery/D1_ACCEPTANCE.md).
 
 Run: `python3 -m pytest -q` (from the repo root). The domain + C1 suite needs
-no third-party packages; later C-phases add `fastapi`/`httpx` (use a venv —
-`.venv/bin/python -m pytest -q`).
+no third-party packages; the API / auth / webclient / integration / D1 suites
+need `fastapi` + `httpx` (use a venv — `.venv/bin/python -m pytest -q`).
+
+## Reference web-client notes (C5/C6)
+
+`webclient/child.html` and `webclient/parent.html` are thin static single-file
+clients over the C2–C4 API, served at `/app/child` and `/app/parent`. They are
+the D1 reference clients, not the production track.
+
+Accessibility baseline in `child.html`: `@media (prefers-reduced-motion)`
+disables the celebration animation; tap-to-hear via `speechSynthesis` (Web
+Speech API — no dependency, silent where unavailable) with `aria-label`s, plus
+`audio_narration: "always"` auto-reads the day's quests; instance state is
+shown as text + glyph (`✓ done` / `⏳ waiting`), never colour alone; interactive
+controls are ≥44px. Exact 64pt target sizing, contrast ratios, and a
+screen-reader pass are design/QA items, not asserted in tests.
 
 ## Known implementation gaps (deferred — out of MVP-subsystem scope)
 
 - Hardened parent-gate challenge (rate-limiting, lockout, re-challenge policy);
-  token persistence across restarts (`AuthService` registry is in-memory).
-- Notification delivery transport (only the event sink interface exists) (C4).
-- Reference web clients (C5/C6); production mobile client (post-readiness).
+  token + event persistence across restarts (`AuthService` and `EventSink` are
+  in-memory).
+- Real-time celebration delivery (poll only in MVP — ROADMAP Layer 1).
+- Production mobile client (post-D1); a browser/visual QA pass on the two
+  reference clients (see `D1_ACCEPTANCE.md` caveats).
 - `PARENT_MANAGED` assignment UX (DECISION-019 — post-MVP).
 - Optional evidence photos, long-term meta-game, multi-caregiver (all
   post-MVP / deferred in the contract).

@@ -19,8 +19,12 @@
           border: 3px solid #f3d9a4; cursor: pointer; user-select: none; }
   .card .icon { font-size: 52px; line-height: 1.1; }
   .card .label { margin-top: 8px; font-size: 16px; font-weight: 600; }
+  .card .cue { margin-top: 6px; font-size: 14px; font-weight: 700; }  /* state as text+glyph, never colour alone */
   .card.pending { border-color: #8bd3dd; }
-  .card.verified { border-color: #7cc47c; opacity: .65; }
+  .card.verified { border-color: #7cc47c; opacity: .7; }
+  .card .say { position: absolute; top: 6px; right: 8px; font-size: 20px; background: none;
+               border: none; cursor: pointer; min-width: 44px; min-height: 44px; }
+  .card { position: relative; }
   .hide-label .label { display: none; }
   .bigbtn { display: block; width: 100%; padding: 26px; font-size: 24px; font-weight: 800;
             border: none; border-radius: 26px; background: #f582ae; color: #fff; cursor: pointer; }
@@ -66,6 +70,16 @@ const root = document.getElementById("root");
 const nav = document.getElementById("nav");
 const netEl = document.getElementById("net");
 const today = () => new Date().toISOString().slice(0, 10);
+
+// tap-to-hear audio narration (MVP item 3 / accessibility baseline). Web Speech
+// API — no dependency, degrades silently where unavailable.
+function say(text) {
+  try {
+    if (!("speechSynthesis" in window) || !text) return;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  } catch {}
+}
 
 function setNet() {
   const on = navigator.onLine;
@@ -174,14 +188,19 @@ async function renderToday() {
   const shown = prof.quests_shown_at_once || 5;
   const hideLabel = prof.text_style === "icon_only";
   const visible = state.items.slice(0, shown);
+  // state shown as text + glyph (never colour alone — accessibility baseline)
+  const cue = { available: "", pending: "⏳ waiting", verified: "✓ done" };
   const cards = visible.map(it => `
     <div class="card ${it.state}" data-q="${it.quest_id}">
+      <button class="say" data-say="${it.title.replace(/"/g, "&quot;")}" aria-label="Hear ${it.title}">🔊</button>
       <div class="icon">${it.icon || "⭐"}</div>
       <div class="label">${it.title}</div>
+      <div class="cue">${cue[it.state] || ""}</div>
     </div>`).join("");
   const allDone = visible.length > 0 && visible.every(it => it.state === "verified");
   root.innerHTML = `<div class="grid ${hideLabel ? "hide-label" : ""}">${cards || "<p>Nothing for today 🌿</p>"}</div>
     ${allDone ? '<div class="done">🌟 Day complete!</div>' : ""}`;
+  root.querySelectorAll(".say").forEach(b => b.onclick = (e) => { e.stopPropagation(); say(b.dataset.say); });
   root.querySelectorAll(".card").forEach(el => {
     el.onclick = () => {
       const q = state.items.find(i => i.quest_id === el.dataset.q);
@@ -190,6 +209,10 @@ async function renderToday() {
       openDoIt(q);
     };
   });
+  // audio_narration "always": read the day's quests aloud once on open
+  if (prof.audio_narration === "always" && visible.length) {
+    say(visible.map(it => it.title).join(". "));
+  }
 }
 
 function openDoIt(quest) {
@@ -200,10 +223,13 @@ function openDoIt(quest) {
     <div style="text-align:center;margin:24px 0">
       <div style="font-size:76px">${quest.icon || "⭐"}</div>
       <div style="font-size:20px;font-weight:700;margin-top:8px">${quest.title}</div>
+      <button class="say" id="hear" style="position:static;font-size:26px" aria-label="Hear ${quest.title}">🔊</button>
     </div>
     <button class="bigbtn" id="did">I did it!</button>`;
   document.getElementById("b").onclick = () => go("today");
+  document.getElementById("hear").onclick = () => say(quest.title);
   document.getElementById("did").onclick = async (e) => { e.target.disabled = true; await markDone(quest); };
+  if ((state.profile || {}).audio_narration === "always") say(quest.title);
 }
 
 async function renderProgress() {

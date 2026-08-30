@@ -33,6 +33,7 @@ docs/
 │
 ├── product-delivery/       WHAT gets built, and when
 │   ├── MVP.md                  The MVP capabilities, cross-cutting requirements, acceptance
+│   ├── D1_ACCEPTANCE.md        The D1 end-to-end MVP acceptance run + readiness verdict
 │   ├── ROADMAP.md              Post-MVP layers and how items enter the roadmap
 │   └── ARCHITECTURE.md         How the system is organised and built (construction)
 │
@@ -42,8 +43,13 @@ docs/
 │
 └── governance/             FROZEN DECISIONS + THE OPERATING CONSTITUTION
     ├── DECISION_LOG.md         DECISION-001 … DECISION-019 + reserved
-    └── LEADERSHIP_PROTOCOL.md  Autonomous Leadership & Execution Constitution — authority boundary, source-of-truth tiers, phase loop, escalation/stop conditions
+    └── LEADERSHIP_PROTOCOL.md  Autonomous Engineering Leadership & Supervised Execution — authority boundary, source-of-truth tiers, phase loop, escalation/stop conditions
 ```
+
+**MVP status.** Layer 0 is complete through **D1** (end-to-end MVP acceptance)
+— see [`product-delivery/D1_ACCEPTANCE.md`](./product-delivery/D1_ACCEPTANCE.md).
+Post-D1 work requires a new Product Owner grant per
+[`governance/LEADERSHIP_PROTOCOL.md`](./governance/LEADERSHIP_PROTOCOL.md) §22.
 
 **Implementation.** `src/questgrow/` is the MVP domain, written strictly
 against `architecture/TECHNICAL_MODEL.md`; `tests/` holds the AC-1…15 and

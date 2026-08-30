@@ -19,17 +19,22 @@ an on-ramp: every MVP quest starts at `PARENT_GUIDED`; `PARENT_MANAGED`
 remains a valid contract stage but is not assignable or rendered in the MVP
 UI; a dedicated `PARENT_MANAGED` / ~3–4 experience is post-MVP.
 
-**Progress.** The domain layer is implemented and contract-tested
-([TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md) §2–§9 — AC-1…15,
-INV-1…18; `src/questgrow/`). The **remaining Layer 0 work**: persistence,
-HTTP API, auth + parent gate, notification transport, the `complexityProfile`
-rendering contract + client consumption, the child client, the parent client
-— then the end-to-end acceptance run. Sequenced under the `MVP Implementation`
-milestone.
+**Progress.** Layer 0 is **complete through D1**. The domain layer
+(`src/questgrow/`, AC-1…15 / INV-1…18) plus C1–C6 — persistence
+(`SqliteRepository`), HTTP API (`api.py`), auth + PIN parent gate (`auth.py`),
+notification transport (`events.py` / `notifications.py`), the
+`complexityProfile` resolver + reference-client consumption, and the child and
+parent reference web clients (`webclient/`) — all shipped under the
+`MVP Implementation` milestone (issues #20–#26, #10, closed).
 
-**Exit criteria:** the end-to-end acceptance checklist in
-[MVP.md](./MVP.md#mvp-acceptance-the-loop-works-end-to-end) passes with a real
-reference family.
+**Exit criteria — MET (2026-08-30).** The end-to-end acceptance checklist in
+[MVP.md](./MVP.md#mvp-acceptance-the-loop-works-end-to-end) passes through the
+full stack on a reference family — see
+[`D1_ACCEPTANCE.md`](./D1_ACCEPTANCE.md) (`tests/test_d1_acceptance.py`, 17
+checks). Residual: a human visual/UX confirmation pass on the two reference
+clients (browser + offline toggle + reduced-motion) — a QA activity, not
+construction. Post-D1 work requires a new Product Owner grant
+([LEADERSHIP_PROTOCOL §22](../governance/LEADERSHIP_PROTOCOL.md)).
 
 ## Layer 1 — Strengthen the core loop
 
