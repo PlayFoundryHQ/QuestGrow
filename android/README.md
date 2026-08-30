@@ -116,18 +116,36 @@ animation scale is 0); large readable type.
   child name renders and by each backend's request log); the old URL
   receives zero requests and `questgrow_prefs.xml` holds only the new
   `base_url`.
-- All at font scale 1.0, and re-checked at **1.5× and 2.0×** — every screen
-  stays scrollable, text wraps, no control is clipped or unreachable.
+- All at font scale 1.0, and re-checked at **1.5× and 2.0×** on the emulator —
+  every screen stays scrollable, text wraps, no control is clipped or
+  unreachable.
+
+**Verified on a physical device** (Cycle 3 — OnePlus Nord AC2003, Android 12 /
+API 31, in **dark mode**): mode chooser, parent sign-in / PIN gate, parent
+navigation across all seven tabs, the empty states (Approvals, Rewards), child
+code entry + auth, child Today, child completion, both server-authoritative
+outcomes (`PARENT_GUIDED` → "waiting for your grown-up"; `CHILD_OWNED` →
+celebration "⭐ +10" from `/v1/me/celebrations`), parent approvals → approve →
+empty, and the full backend-URL round trip (start on backend A → change URL in
+Settings → relaunch, PID changes → sign in → backend B; A receives zero
+requests; prefs hold only the new URL). Dark-theme rendering is correct on
+every screen seen — no contrast, clipping, or system-bar-inset problems.
+`‹ Today` / `Hear it` measured 153 px = 64 dp at the device's display-size
+setting.
 
 **Accessibility verified at the AccessibilityNodeInfo / Compose-semantics
-layer:** icon-only quest cards announce "`<quest>`, done" / "`<quest>`,
-waiting" / "`<quest>`" — the name is exposed even when the label is visually
-hidden, and no stage/level leaks into it (INV-8). Child-surface touch
-targets are ≥64 dp (primary actions via `BigButton`; secondary buttons —
-"‹ Today", "Progress", "Grown-up" — raised from 48 dp to 64 dp in Cycle 3).
-**NOT verified:** audible TTS output (no audio sink); a real physical
-device; TalkBack swipe-traversal focus order (touch-exploration does not
-engage on the headless emulator).
+layer** (emulator + physical device): icon-only quest cards announce
+"`<quest>`, done" / "`<quest>`, waiting" / "`<quest>`" — the name is exposed
+even when the label is visually hidden, and no stage/level leaks into it
+(INV-8). Child-surface touch targets are ≥64 dp (primary actions via
+`BigButton`; secondary buttons — "‹ Today", "Progress", "Grown-up" — raised
+from 48 dp to 64 dp in Cycle 3).
+
+**NOT verified / BLOCKED:** audible TTS / TalkBack speech output; live
+TalkBack swipe-traversal focus order; on-device font-scale — the test phone
+denies `adb shell settings put` (`WRITE_SECURE_SETTINGS`) and `pm clear`, so
+TalkBack and font scale cannot be toggled without hands-on access to the
+device UI. Font scale 1.5×/2.0× is covered on the emulator.
 
 ## Offline behaviour
 
