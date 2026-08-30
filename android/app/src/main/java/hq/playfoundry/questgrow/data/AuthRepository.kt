@@ -36,6 +36,19 @@ class AuthRepository(
         }
     }
 
+    /**
+     * Returning parent on a fresh device: sign in with full credentials and
+     * remember the account here (so the everyday PIN gate works afterwards).
+     * Used by the onboarding "قبلاً حساب دارم" path — the account already
+     * exists server-side so `registerParent` would 409 on the email.
+     */
+    suspend fun signInExisting(email: String, password: String, pin: String): ApiResult<Unit> =
+        when (val r = signInAsParent(email, password, pin)) {
+            is ApiResult.Ok -> { tokens.setAccount(email, password); ApiResult.Ok(Unit) }
+            is ApiResult.Failure -> r
+            is ApiResult.Offline -> r
+        }
+
     /** Everyday parent gate: PIN only, using the stored account. */
     suspend fun unlockWithPin(pin: String): ApiResult<Unit> {
         val email = tokens.accountEmailBlocking()

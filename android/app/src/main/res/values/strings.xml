@@ -48,8 +48,12 @@
 
     <!-- returning sign-in (recovery) -->
     <string name="signin_title">ورود</string>
+    <string name="signin_sub">با ایمیل، رمز عبور و رمز والد وارد شو.</string>
     <string name="signin_unlock">باز کردن در والد</string>
     <string name="signin_wrong">ایمیل، رمز عبور یا رمز والد اشتباه است — یا تلاش زیاد بوده.</string>
+    <string name="onb_pick_child_title">این دستگاه برای کدام کودک است؟</string>
+    <string name="onb_pick_child_sub">تختهٔ همین کودک روی این گوشی نشان داده می‌شود. بعداً می‌توانی بین کودکان جابه‌جا شوی.</string>
+    <string name="onb_add_child">افزودن کودک تازه</string>
 
     <!-- kid board -->
     <string name="kid_all_done">آفرین! همهٔ کارهای امروز تمام شد 🌟</string>

@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.sp
 import hq.playfoundry.questgrow.AppContainer
 import hq.playfoundry.questgrow.R
 import hq.playfoundry.questgrow.core.ApiResult
+import hq.playfoundry.questgrow.data.model.ChildProfile
 import hq.playfoundry.questgrow.ui.AppScaffold
+import hq.playfoundry.questgrow.ui.Avatar
 import hq.playfoundry.questgrow.ui.BigButton
 import hq.playfoundry.questgrow.ui.DigitPad
 import hq.playfoundry.questgrow.ui.Field
@@ -48,13 +50,21 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
 
-private enum class Step { Who, Account, Child, Routines, Pair }
+private enum class Step { Who, Account, SignIn, PickChild, Child, Routines, Pair }
 
 private fun Step.dotIndex() = when (this) {
-    Step.Who -> 0; Step.Account, Step.Pair -> 1; Step.Child -> 2; Step.Routines -> 3
+    Step.Who -> 0
+    Step.Account, Step.Pair -> 1
+    Step.Child -> 2
+    Step.Routines -> 3
+    Step.SignIn, Step.PickChild -> -1   // recovery branch — no dots
 }
 
-/** Guided first-run: a 4-step stepper (or the child-device pairing branch). */
+/**
+ * Guided first-run: a 4-step stepper for a new family, plus a returning-parent
+ * sign-in branch (account already exists server-side) and the child-device
+ * pairing branch.
+ */
 @Composable
 fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
     var step by remember { mutableStateOf(Step.Who) }
@@ -65,6 +75,7 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
     var ageBand by remember { mutableStateOf("5-6") }
     val childId = remember { "c" + UUID.randomUUID().toString().take(8) }
     val picked = remember { mutableStateListOf("teeth", "get-dressed", "tidy-up") }
+    var existingKids by remember { mutableStateOf<List<ChildProfile>>(emptyList()) }
 
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -73,9 +84,9 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
     fun fail(r: ApiResult<*>) {
         error = when {
             r is ApiResult.Failure && r.detail.contains("already registered", true) ->
-                "این ایمیل قبلاً ثبت شده — از «قبلاً حساب دارم» استفاده کن یا ایمیل دیگری بزن."
+                "این ایمیل قبلاً ثبت شده — روی «قبلاً حساب دارم» بزن."
             r is ApiResult.Failure && (r.status == 401 || r.status == 403) ->
-                "ایمیل یا رمز درست نیست."
+                "ایمیل، رمز عبور یا رمز والد درست نیست."
             r is ApiResult.Failure -> r.detail.ifBlank { r.code }
             r is ApiResult.Offline -> "آفلاین — الان نمی‌شود این را انجام داد."
             else -> "مشکلی پیش آمد"
@@ -83,22 +94,39 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
         busy = false
     }
 
+    /** activate [id] on this device and finish. */
+    fun activateAndFinish(id: String, name: String) {
+        busy = true; error = null
+        scope.launch {
+            when (val t = container.authRepo.issueChildToken(id)) {
+                is ApiResult.Ok -> {
+                    container.tokenStore.putChildToken(id, name.trim(), t.value)
+                    busy = false; onDone()
+                }
+                else -> fail(t)
+            }
+        }
+    }
+
     val title = when (step) {
         Step.Who -> stringResource(R.string.onb_who)
         Step.Account -> stringResource(R.string.onb_account_title)
+        Step.SignIn -> stringResource(R.string.signin_title)
+        Step.PickChild -> stringResource(R.string.onb_pick_child_title)
         Step.Child -> stringResource(R.string.onb_child_title)
         Step.Routines -> stringResource(R.string.onb_routines_title)
         Step.Pair -> stringResource(R.string.pair_enter)
     }
     val back: (() -> Unit)? = when (step) {
         Step.Who -> null
-        Step.Account, Step.Pair -> ({ error = null; step = Step.Who })
-        Step.Child -> ({ error = null; step = Step.Account })
+        Step.Account, Step.Pair, Step.SignIn -> ({ error = null; step = Step.Who })
+        Step.PickChild -> ({ error = null; step = Step.SignIn })
+        Step.Child -> ({ error = null; step = if (existingKids.isNotEmpty()) Step.PickChild else Step.Account })
         Step.Routines -> ({ error = null; step = Step.Child })
     }
 
     AppScaffold(title = title, onBack = back) {
-        if (step != Step.Pair) {
+        if (step.dotIndex() >= 0) {
             StepDots(4, step.dotIndex(), Modifier.padding(top = Space.xs, bottom = Space.sm))
         }
         error?.let {
@@ -154,6 +182,58 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
                         }
                     }
                 }
+                GhostButton(stringResource(R.string.onb_have_account)) { error = null; step = Step.SignIn }
+            }
+
+            Step.SignIn -> {
+                Hero("👋")
+                HintText(stringResource(R.string.signin_sub))
+                Field(stringResource(R.string.onb_email), email, { email = it }, keyboard = KeyboardType.Email, ltr = true)
+                Field(stringResource(R.string.onb_password), pass, { pass = it }, keyboard = KeyboardType.Password)
+                Field(
+                    stringResource(R.string.onb_pin), pin,
+                    { if (it.length <= 4) pin = it.filter(Char::isDigit) },
+                    keyboard = KeyboardType.NumberPassword,
+                )
+                BigButton(
+                    stringResource(R.string.signin_title), Modifier.padding(top = Space.sm),
+                    enabled = !busy && email.isNotBlank() && pass.isNotBlank() && pin.length == 4,
+                ) {
+                    busy = true; error = null
+                    scope.launch {
+                        when (val r = container.authRepo.signInExisting(email, pass, pin)) {
+                            is ApiResult.Ok -> {
+                                container.useParentScope()
+                                existingKids = (container.parentRepo.children() as? ApiResult.Ok)?.value ?: emptyList()
+                                busy = false
+                                step = if (existingKids.isEmpty()) Step.Child else Step.PickChild
+                            }
+                            else -> fail(r)
+                        }
+                    }
+                }
+            }
+
+            Step.PickChild -> {
+                Hero("🧒")
+                HintText(stringResource(R.string.onb_pick_child_sub))
+                existingKids.forEach { kid ->
+                    Card(
+                        Modifier.fillMaxWidth().clickable(enabled = !busy) { activateAndFinish(kid.childId, kid.name) },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(Space.md),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Space.md),
+                        ) {
+                            Avatar(kid.name, size = 44.dp)
+                            Text("${kid.name}  (${kid.ageBand})", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                            Text("‹", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                GhostButton(stringResource(R.string.onb_add_child)) { error = null; step = Step.Child }
             }
 
             Step.Child -> {
@@ -185,13 +265,7 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
                             container.parentRepo.assign(childId, s.id)
                         }
                         container.parentRepo.materialise(LocalDate.now().toString())
-                        when (val t = container.authRepo.issueChildToken(childId)) {
-                            is ApiResult.Ok -> {
-                                container.tokenStore.putChildToken(childId, childName.trim(), t.value)
-                                busy = false; onDone()
-                            }
-                            else -> fail(t)
-                        }
+                        activateAndFinish(childId, childName)
                     }
                 }
             }
