@@ -5,9 +5,12 @@
 #   ./scripts/release.sh 0.3.1 --with-apk      # also build+attach the signed Android APK
 #   ./scripts/release.sh 0.3.1 --dry-run       # build + test, no push / tag / release
 #
-# Flow (all local, no cloud CI — see docs/memory cicd-approach):
-#   verify tree → run tests → bump pyproject version → build & push image →
-#   git tag vX.Y.Z → gh release create → print the k8s image-tag bump to do next.
+# Flow (all local, no cloud CI):
+#   verify tree → run backend tests → bump versions (pyproject + api.py + chart
+#   + nuc-lab values) → build & health-check image → one commit → git tag vX.Y.Z
+#   → push image (ghcr, tag X.Y.Z + sha + latest) → push chart (OCI) →
+#   gh release create → print the ArgoCD targetRevision bump to do next.
+# Image/chart tags are bare X.Y.Z; the git tag is vX.Y.Z.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -57,9 +60,9 @@ grep -q "\"$ver\"" pyproject.toml || { echo "version bump did not take"; exit 1;
 say "helm lint"
 helm lint deploy/questgrow -f deploy/questgrow/values-nuc-lab.yaml
 
-say "build image  $IMAGE:$tag  (+ :$sha, :latest)"
-docker build -t "$IMAGE:$tag" -t "$IMAGE:$sha" -t "$IMAGE:latest" .
-docker run --rm -d --name qg-relcheck -p 18099:8000 "$IMAGE:$tag" >/dev/null
+say "build image  $IMAGE:$ver  (+ :$sha, :latest)"
+docker build -t "$IMAGE:$ver" -t "$IMAGE:$sha" -t "$IMAGE:latest" .
+docker run --rm -d --name qg-relcheck -p 18099:8000 "$IMAGE:$ver" >/dev/null
 for i in $(seq 1 20); do curl -sf localhost:18099/health >/dev/null && break || sleep 0.5; done
 curl -sf localhost:18099/health && echo "  ✓ image healthy" || { docker logs qg-relcheck; docker rm -f qg-relcheck; exit 1; }
 docker rm -f qg-relcheck >/dev/null
@@ -90,7 +93,7 @@ git tag -a "$tag" -m "QuestGrow $tag"
 git push -q origin main "$tag"
 
 say "push image + chart"
-docker push "$IMAGE:$tag"; docker push "$IMAGE:$sha"; docker push "$IMAGE:latest"
+docker push "$IMAGE:$ver"; docker push "$IMAGE:$sha"; docker push "$IMAGE:latest"
 helm package deploy/questgrow --version "$ver" --app-version "$ver" -d /tmp
 helm push "/tmp/questgrow-$ver.tgz" "$CHART_REGISTRY"
 rm -f "/tmp/questgrow-$ver.tgz"
@@ -98,13 +101,13 @@ rm -f "/tmp/questgrow-$ver.tgz"
 say "github release"
 gh release create "$tag" ${apk:+"$apk"} \
   --title "QuestGrow $tag" \
-  --notes "Backend image: \`$IMAGE:$tag\`
+  --notes "Backend image: \`$IMAGE:$ver\`
 Helm chart: \`$CHART_REGISTRY/questgrow\` \`$ver\`
 
 $notes"
 
 say "done"
-echo "  image: $IMAGE:$tag"
-echo "  chart: $CHART_REGISTRY/questgrow  $chart_ver"
-echo "  next:  bump the QuestGrow ArgoCD Application targetRevision to $chart_ver"
-echo "         (in OpScaleLab/nuc-lab-operation gitops/apps) and let ArgoCD sync."
+echo "  image: $IMAGE:$ver"
+echo "  chart: $CHART_REGISTRY/questgrow  $ver"
+echo "  next:  bump the QuestGrow ArgoCD Application targetRevision to $ver in"
+echo "         OpScaleLab/nuc-lab-operation gitops/apps, let ArgoCD sync."
