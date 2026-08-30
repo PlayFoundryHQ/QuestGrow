@@ -7,8 +7,12 @@
 > truth*. When a phase report and this file disagree, this file wins (or this
 > file is wrong and should be corrected).
 >
-> Established: **2026-08-30**, repository `HEAD = 2f15632de97c26e783e230cc36eededad245b871`.
-> See §19 "How to independently verify this state".
+> Established: **2026-08-30**. The **code** state this describes is the tree at
+> `2f15632` (release `v0.6.3`); this file and the accompanying documentation
+> corrections are added in the immediately following **docs-only** commit
+> `80449ec` (backend + Android suites pass unchanged — no behaviour change).
+> Read the current `HEAD` (`git rev-parse HEAD`) and confirm it is a
+> descendant of `80449ec` with no code changes since. See §19.
 
 ---
 
@@ -16,7 +20,7 @@
 
 | Component | Version | State |
 |---|---|---|
-| Repository `HEAD` | `2f15632` (`release: v0.6.3 — backend image + chart`) | `== origin/main`, tree clean, 71 commits |
+| Repository `HEAD` | `80449ec` — docs-only, on top of `2f15632` (`release: v0.6.3`) | `== origin/main`, tree clean, 72 commits |
 | Latest git tag / GitHub Release | **`v0.6.3`** (2026-08-30) | 11 releases: `v0.3.1 … v0.6.3` |
 | Backend package (`pyproject.toml`) | `0.6.3` | `FastAPI(title="QuestGrow API", version="0.6.3")` |
 | Helm chart (`deploy/questgrow/Chart.yaml`) | `0.6.3` / appVersion `0.6.3` | published to `ghcr.io/playfoundryhq/charts/questgrow` for every release |
@@ -888,8 +892,9 @@ grep -rn "ownership_stage\|readiness\|streak" android/app/src/main/java/hq/playf
 #    CRACK-2: image 0.6.1 vs code 0.6.3  (client-only releases in between)
 ```
 
-The repository at `HEAD = 2f15632` **is** the authoritative source of truth for
-the current project state. This file is its index.
+The repository at `HEAD` (`80449ec`, docs-only on top of the `v0.6.3` release
+`2f15632`) **is** the authoritative source of truth for the current project
+state. This file is its index.
 
 ---
 
