@@ -209,7 +209,7 @@ touching the contract (`TECHNICAL_MODEL`).
 | Language | **Python 3.11+** | the `a0b538c` domain is already stdlib Python; keep it |
 | Web framework | **FastAPI** (+ `uvicorn`) | typed request/response models → the §5 scope model and INV-8 boundary are enforceable as schemas; auto OpenAPI |
 | Persistence | **SQLite** (dev / single-family / D1) or **PostgreSQL** (multi-family) — one portable `SqlRepository`, plain SQL, no ORM, `migrations/*.sql` applied by `migrate.run`. Restart-safe (ids/`seq` in SQL). *(Phase F)* | the `Repository` protocol keeps the engine swappable (TOQ-7); `db.py` hides the two dialects |
-| Auth | email + password (PBKDF2), PIN parent gate, server-issued **scoped tokens**; credentials + tokens + failed-attempt counters in the DB (`SqlAuthStore`); login/unlock **rate-limited + lockout**. *(Phase F)* | realises the §5 actor matrix, restart-safe; re-challenge cadence / refresh-token existence remain **PO decisions** |
+| Auth | email + password (PBKDF2), PIN parent gate, server-issued **scoped tokens**; credentials + tokens + failed-attempt counters in the DB (`SqlAuthStore`); login/unlock **rate-limited + lockout**. *(Phase F)* | realises the §5 actor matrix, restart-safe; **no OIDC, no refresh token** (settled — see below); re-challenge = the `QUESTGROW_PARENT_TTL_S` knob |
 | Config | `Settings.from_env` + `build_app` (`uvicorn questgrow.asgi:app`); `QUESTGROW_DATABASE_URL`, TTLs, abuse limits, CORS allow-list — **CORS off by default**. *(Phase F)* | production-safe defaults; no product knobs |
 | Real-time | **poll** `completion.verified` on app foreground | socket/push is Layer 1 |
 | API | every route served unprefixed **and under `/v1`**; structured error `code`s; list/detail endpoints. *(Phase F, additive)* | a native client pins `/v1` and branches on `code` |
@@ -224,8 +224,10 @@ post-MVP.
 - Native Android client (Phase G) — consumes the `/v1` API + domain contracts.
 - Hosting / deployment topology (container, managed Postgres, TLS termination).
 - Socket/push real-time delivery (Layer 1).
-- **Product decisions the PO has reserved:** parent-gate re-challenge cadence;
-  whether a refresh token exists as a product behaviour; hardened-challenge
-  design for the 3–8 context.
+- **Auth policy — settled 2026-08-30 (owner):** static email/password + PIN
+  only; **no OIDC / social login**, **no refresh token**, no payment plumbing —
+  proportionate to a solo personal project. Re-challenge cadence is just the
+  `QUESTGROW_PARENT_TTL_S` operational knob (raised from 900 s in the
+  deployment config for convenience). No hardened-challenge redesign.
 - Per-age-band tuning of the advancement threshold
   ([OWNERSHIP_MODEL open questions](../experience/OWNERSHIP_MODEL.md)).

@@ -43,8 +43,8 @@ ui/parent/   sign-in (PIN gate) · dashboard · approvals (+ batch) · family
 - **Rewards are server-authoritative** — points shown come from
   `/v1/me/celebrations` and `/v1/me/progress`; nothing is awarded locally.
 - **Auth contract verbatim** — `login → session → unlock(PIN) → parent token
-  → child token`. No refresh tokens, no new gate semantics (reserved product
-  decisions).
+  → child token`. No refresh tokens, no OIDC, no new gate semantics — settled
+  (solo personal project; auth stays simple).
 - **complexityProfile is consumed, not computed** — `text_style`,
   `quests_shown_at_once`, `audio_narration`, `reward_presentation` drive
   rendering; an unknown value falls back to the middle option.

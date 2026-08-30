@@ -420,9 +420,9 @@ it.
 - **Related principles:** #4, #13, #16, #20
 - **Affected documents:**
   [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md);
-  [OWNERSHIP_MODEL §6](../experience/OWNERSHIP_MODEL.md) — compatible today
-  ("advance earlier manually"); a later pass may make the multi-stage case
-  explicit.
+  [OWNERSHIP_MODEL §6](../experience/OWNERSHIP_MODEL.md) — reconciled
+  2026-08-30: §6 now states manual advancement may skip stages in one action
+  with the confirmation naming the bypassed stage(s).
 - **Related GitHub issues:** #17
 
 ### DECISION-018 — Expired scheduled occurrences are neutral for `consecutive_ok_count`
@@ -452,9 +452,9 @@ it.
 - **Related principles:** #9, #12, #13
 - **Affected documents:**
   [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md);
-  [OWNERSHIP_MODEL §6](../experience/OWNERSHIP_MODEL.md) — its "8 consecutive …
-  *completed*" wording leans the other way and should be reconciled to this
-  decision in a later pass.
+  [OWNERSHIP_MODEL §6](../experience/OWNERSHIP_MODEL.md) — reconciled
+  2026-08-30: §6 now says only a "not yet" resets the count and a missed
+  (`expired`) scheduled occurrence is neutral.
 - **Related GitHub issues:** #17
 
 ### DECISION-019 — MVP is an on-ramp; `PARENT_MANAGED` is domain-valid but not MVP-assignable
@@ -485,10 +485,11 @@ it.
   [TECHNICAL_MODEL](../architecture/TECHNICAL_MODEL.md),
   [MVP](../product-delivery/MVP.md) (already lists a dedicated `PARENT_MANAGED`
   UI as out of scope);
-  [OWNERSHIP_MODEL "Open questions"](../experience/OWNERSHIP_MODEL.md) and
-  [PRODUCT_VISION §13](../product-foundation/PRODUCT_VISION.md) — both still
-  list OQ-A as flatly unresolved and must be reconciled to this decision in a
-  later pass.
+  [OWNERSHIP_MODEL "Open questions"](../experience/OWNERSHIP_MODEL.md),
+  [PRODUCT_VISION §13](../product-foundation/PRODUCT_VISION.md), and
+  [UX_PRINCIPLES age-adaptation table](../experience/UX_PRINCIPLES.md) —
+  reconciled: each now carries the DECISION-019 note (MVP-scope aspect of OQ-A
+  decided; long-term product-identity aspect stays open).
 - **Related GitHub issues:** #17, #7
 
 ---

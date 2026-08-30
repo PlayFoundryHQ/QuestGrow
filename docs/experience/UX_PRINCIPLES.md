@@ -115,7 +115,13 @@ per-dimension parent overrides. Bands are guidance, not hard gates.
 | Task complexity | Single-step quests | Small multi-step | Multi-step, sequences |
 | Reading required | None | Minimal | Light |
 | Reward presentation | Big immediate animation | Animation + progress | Progress, collectibles, stories |
-| Default ownership stage | `PARENT_MANAGED` / `PARENT_GUIDED` | `PARENT_GUIDED` | `PARENT_GUIDED` / `CHILD_PARTICIPATED` |
+| Default ownership stage *(contract derivation; see note)* | `PARENT_MANAGED` / `PARENT_GUIDED` | `PARENT_GUIDED` | `PARENT_GUIDED` / `CHILD_PARTICIPATED` |
+
+*Ownership-stage note ([DECISION-019](../governance/DECISION_LOG.md)):* the
+age-band → default-stage derivation stays in the contract, but the **MVP is an
+on-ramp** — every MVP quest is created at `PARENT_GUIDED` regardless of band,
+`PARENT_MANAGED` is domain-valid but not MVP-assignable, and a dedicated
+`PARENT_MANAGED` / ~3–4 experience is post-MVP.
 
 Components are built as variants keyed on the band / a derived complexity
 level — never a single fixed layout. See

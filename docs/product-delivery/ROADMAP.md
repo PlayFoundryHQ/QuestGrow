@@ -42,9 +42,21 @@ production foundation hardening: portable SQLite/PostgreSQL persistence +
 migrations, restart-safe ids, durable `SqlAuthStore` / `SqlEventSink`,
 login/unlock rate-limiting, env config + `build_app`, and an additive `/v1`
 API surface with structured error codes and list/detail endpoints
-([`DEPLOYMENT.md`](./DEPLOYMENT.md)). Phase G — the **native Android client**
-([`../../android/README.md`](../../android/README.md)), consuming the `/v1`
-contract; no product-model change.
+([`DEPLOYMENT.md`](./DEPLOYMENT.md)). Phases G–J — the **native Android
+client** ([`../../android/README.md`](../../android/README.md)), consuming the
+`/v1` contract with no product-model change: offline queue + read cache, the
+full child and parent surfaces, explicit Loading/Empty/Error/Retry states, a
+clean app relaunch, a MockWebServer instrumented suite, and verification on an
+emulator and a physical device.
+
+**Remaining to run the MVP as a live product** (owner-directed, no external
+grants — this is a solo personal project as of Phase J): deploy the backend to
+the owner's Kubernetes cluster at `questgrow.opscale.ir`; local
+build → GHCR → git-tag → GitHub Release tooling; signed APK distributed via
+GitHub Releases (no Play Store); a proportionate security/ops pass; and the
+hands-on accessibility / airplane-mode checks the emulator can't cover.
+Auth stays static email/password + PIN (no OIDC — Google is unreachable for
+the owner; no refresh token; no payment).
 
 ## Layer 1 — Strengthen the core loop
 

@@ -120,15 +120,21 @@ A spot-check that finds a problem is handled like any parenting moment
 
 - The app **may suggest** advancement. The **parent confirms**. The app never
   advances a quest on its own.
-- **Default suggestion trigger: 8 consecutive eligible scheduled
-  occurrences** completed by the child without a "not yet". "Eligible" means
-  the occurrence was actually scheduled (a skipped non-scheduled day is not a
-  break).
+- **Default suggestion trigger: 8 eligible scheduled occurrences** completed
+  by the child without a "not yet" in between. "Eligible" means the occurrence
+  was actually scheduled. Only a parent **"not yet"** resets the count; a
+  skipped non-scheduled day has no effect, and a missed scheduled occurrence
+  (one that `expired` without completion) is **neutral** — it neither
+  increments nor resets ([DECISION-018](../governance/DECISION_LOG.md),
+  INV-16). The window may therefore include missed days.
 - **The number 8 is a tunable product default, not a hard-coded domain
   invariant.** It should live in configuration, be adjustable, and may be
   tuned per age band later.
-- The parent may **advance earlier** manually, or **dismiss** the suggestion
-  (permanently or "ask me later").
+- The parent may **advance earlier** manually — to any later stage, in a
+  single action; when this bypasses one or more stages the confirmation names
+  the bypassed stage(s) ([DECISION-017](../governance/DECISION_LOG.md)). The
+  automatic *suggestion* still proposes exactly one stage at a time. The
+  parent may also **dismiss** the suggestion (permanently or "ask me later").
 - Suggestion copy is an invitation, not an announcement:
   > 🌱 Mia has been doing this herself for two weeks.
   > Ready to let her own this quest?

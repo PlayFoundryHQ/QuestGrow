@@ -61,7 +61,7 @@ Screenshots were captured and inspected at each step.
 | E3-3 | The parent reference client did not cover the full UX_PRINCIPLES screen inventory: no way to **edit** a child's profile, no **per-dimension adaptation overrides** UI (MVP feature area 1), no **notifications** control (cross-cutting: opt-in), no birthdate field (feature area 1/11). | A — missing user-facing behaviour; intended behaviour already authoritative | **FIXED** — added **Family** and **Settings** screens; `birthdate` added to `ChildIn`/`ChildProfileIn`/`ChildOut` (existing domain field, no product-model change). Test: `test_webclient.py::test_parent_client_covers_the_mvp_screen_inventory`. |
 | E3-4 | Parent client carried a dead `GET /children` call (no such endpoint) — console 404 on load. | D — implementation defect | **FIXED** — removed; 0 4xx/5xx on parent load now. |
 | E3-5 | Celebration animation was 0.5s — below UX_PRINCIPLES "joyful but bounded (1–3s)". | E — spec drift | **FIXED** — ~1.6s pop, reduced-motion honoured. |
-| E3-6 | `UX_PRINCIPLES` age-adaptation table lists the ~3-4 default ownership stage as `PARENT_MANAGED` / `PARENT_GUIDED` — pre-DECISION-019 wording. (DECISION-019 already flags `OWNERSHIP_MODEL` and `PRODUCT_VISION §13` for the same reconciliation.) | E — documentation drift | **NOTED** — reconciliation belongs with the DECISION-019 "later pass" already recorded in that decision's *Affected documents*; not changed here to keep the Phase E change set to code + its own docs. Recommend a small docs-only pass. |
+| E3-6 | `UX_PRINCIPLES` age-adaptation table lists the ~3-4 default ownership stage as `PARENT_MANAGED` / `PARENT_GUIDED` — pre-DECISION-019 wording. (DECISION-019 already flags `OWNERSHIP_MODEL` and `PRODUCT_VISION §13` for the same reconciliation.) | E — documentation drift | **FIXED** (2026-08-30 docs pass) — the UX_PRINCIPLES table row now carries the DECISION-019 on-ramp note; OWNERSHIP_MODEL §6 also reconciled to DECISION-017/018. |
 | E3-7 | No accidental technical behaviour leaking into product semantics found. INV-8 holds (no stage in any child payload — re-verified against OpenAPI and live payloads), ledger append-only, ownership not a KPI (schema scan clean), no streak counter surfaced. | — | **CONFIRMED CLEAN** |
 | E3-8 | Privacy/security: child tokens are per-child and non-escalatable; parent gate required each session; no child PII beyond first name + age band + optional coarse birthdate; secrets PBKDF2-hashed. `AuthService`/`EventSink` are in-memory (a restart drops tokens + the celebration/notification feed). | B (persistence) / G (ops) | **NOTED** — post-D1, already tracked. |
 
@@ -125,3 +125,32 @@ are sound and needed no change. What remains before an Android build starts:
    track; then the native client itself.
 
 Both are new grants. Phase E stops here (LEADERSHIP_PROTOCOL §22).
+
+---
+
+## Addendum — what shipped after Phase E (2026-08-30)
+
+Both recommended grants were given and completed, plus more:
+
+- **Phase F** — production foundation: portable SQLite/PostgreSQL persistence
+  + migration framework, restart-safe ids, durable `SqlAuthStore` /
+  `SqlEventSink`, login/unlock rate-limiting, env config + `build_app`,
+  additive `/v1` API with list/detail endpoints and structured error codes.
+- **Phases G–J** — the native **Android client** (Kotlin/Compose): networking,
+  offline queue + read cache, full child + parent surfaces, explicit
+  Loading/Empty/Error/Retry states, a clean app relaunch, a 12-test
+  MockWebServer instrumented suite, and verification on both an emulator and a
+  **physical device** (incl. dark mode and the backend-URL round trip). See
+  [`../../android/README.md`](../../android/README.md).
+
+**Auth-policy question resolved by the owner (2026-08-30):** static
+email/password + PIN only, no OIDC, no refresh token, no payment plumbing —
+proportionate to a personal project. The parent-token TTL is raised from the
+900 s default in the deployment config (an operational knob, not a decision
+change).
+
+Remaining to close out the MVP as a running product: backend deployment to the
+owner's Kubernetes cluster (`questgrow.opscale.ir`), release tooling, signed
+APK distribution via GitHub Releases, a light security/ops pass, and the
+hands-on accessibility / airplane-mode checks. Tracked in the project memory
+store, not as new phase grants.
