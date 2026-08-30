@@ -4,6 +4,8 @@ import hq.playfoundry.questgrow.adapt.ComplexityProfile
 import hq.playfoundry.questgrow.core.ApiResult
 import hq.playfoundry.questgrow.data.local.OfflineQueue
 import hq.playfoundry.questgrow.data.local.PendingCompletion
+import hq.playfoundry.questgrow.data.local.ReadCache
+import hq.playfoundry.questgrow.data.net.TodayDto
 import hq.playfoundry.questgrow.data.model.Celebration
 import hq.playfoundry.questgrow.data.model.ChildProgress
 import hq.playfoundry.questgrow.data.model.CompletionOutcome
@@ -22,37 +24,45 @@ import hq.playfoundry.questgrow.data.net.apiCall
 class ChildRepository(
     private val api: QuestGrowApi,
     private val queue: OfflineQueue,
+    private val cache: ReadCache? = null,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
-    suspend fun today(day: String): ApiResult<TodayView> =
-        apiCall { api.today(day) }.let { r ->
-            when (r) {
-                is ApiResult.Ok -> {
-                    val d = r.value
-                    val queuedIds = queue.all().filter { it.day == day }.map { it.questId }.toSet()
-                    ApiResult.Ok(
-                        TodayView(
-                            childId = d.childId,
-                            onDate = d.onDate,
-                            lifetimeAchievement = d.lifetimeAchievement,
-                            spendableBalance = d.spendableBalance,
-                            profile = ComplexityProfile.from(d.complexityProfile),
-                            quests = d.items.map { item ->
-                                val state = when {
-                                    item.questId in queuedIds && item.state == "available" ->
-                                        QuestVisualState.QUEUED_OFFLINE
-                                    item.state == "verified" -> QuestVisualState.VERIFIED
-                                    item.state == "pending" -> QuestVisualState.PENDING_GROWNUP
-                                    else -> QuestVisualState.AVAILABLE
-                                }
-                                TodayQuest(item.questId, item.title, item.icon, state, item.waitsForGrownup)
-                            },
-                        ),
-                    )
+    private fun mapToday(d: TodayDto, day: String, stale: Boolean): TodayView {
+        val queuedIds = queue.all().filter { it.day == day }.map { it.questId }.toSet()
+        return TodayView(
+            childId = d.childId,
+            onDate = d.onDate,
+            lifetimeAchievement = d.lifetimeAchievement,
+            spendableBalance = d.spendableBalance,
+            profile = ComplexityProfile.from(d.complexityProfile),
+            stale = stale,
+            quests = d.items.map { item ->
+                val state = when {
+                    item.questId in queuedIds && item.state == "available" -> QuestVisualState.QUEUED_OFFLINE
+                    item.state == "verified" -> QuestVisualState.VERIFIED
+                    item.state == "pending" -> QuestVisualState.PENDING_GROWNUP
+                    else -> QuestVisualState.AVAILABLE
                 }
-                is ApiResult.Failure -> r
-                is ApiResult.Offline -> r
+                TodayQuest(item.questId, item.title, item.icon, state, item.waitsForGrownup)
+            },
+        )
+    }
+
+    /**
+     * Online → live board (and cached for later). Offline with a cached board
+     * → the last-known board marked `stale` (grant §1). Offline with nothing
+     * cached → [ApiResult.Offline].
+     */
+    suspend fun today(day: String): ApiResult<TodayView> =
+        when (val r = apiCall { api.today(day) }) {
+            is ApiResult.Ok -> {
+                cache?.putToday(r.value)
+                ApiResult.Ok(mapToday(r.value, day, stale = false))
             }
+            is ApiResult.Failure -> r
+            is ApiResult.Offline -> cache?.getToday()
+                ?.let { ApiResult.Ok(mapToday(it, day, stale = true)) }
+                ?: r
         }
 
     /**
@@ -121,14 +131,15 @@ class ChildRepository(
         }
 
     suspend fun progress(weekStart: String): ApiResult<ChildProgress> =
-        apiCall { api.progress(weekStart) }.let { r ->
-            when (r) {
-                is ApiResult.Ok -> ApiResult.Ok(
-                    ChildProgress(r.value.lifetimeAchievement, r.value.spendableBalance, r.value.weekActiveDays),
-                )
-                is ApiResult.Failure -> r
-                is ApiResult.Offline -> r
+        when (val r = apiCall { api.progress(weekStart) }) {
+            is ApiResult.Ok -> {
+                cache?.putProgress(r.value)
+                ApiResult.Ok(ChildProgress(r.value.lifetimeAchievement, r.value.spendableBalance, r.value.weekActiveDays))
             }
+            is ApiResult.Failure -> r
+            is ApiResult.Offline -> cache?.getProgress()
+                ?.let { ApiResult.Ok(ChildProgress(it.lifetimeAchievement, it.spendableBalance, it.weekActiveDays, stale = true)) }
+                ?: r
         }
 
     suspend fun redeem(rewardId: String): ApiResult<String> =

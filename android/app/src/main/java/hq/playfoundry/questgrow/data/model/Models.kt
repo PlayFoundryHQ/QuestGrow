@@ -20,6 +20,8 @@ data class TodayView(
     val lifetimeAchievement: Int,
     val spendableBalance: Int,
     val profile: ComplexityProfile,
+    /** true when served from the on-disk cache (device is offline). */
+    val stale: Boolean = false,
 ) {
     /** Layout hint from the server; the client honours it, doesn't compute it. */
     val visibleQuests: List<TodayQuest> get() = quests.take(profile.questsShownAtOnce)
@@ -45,6 +47,7 @@ data class ChildProgress(
     val lifetimeAchievement: Int,
     val spendableBalance: Int,
     val weekActiveDays: Int,
+    val stale: Boolean = false,
 )
 
 // ---- parent side ----

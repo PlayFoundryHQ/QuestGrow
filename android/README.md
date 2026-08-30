@@ -99,14 +99,33 @@ and the accessibility labels are present in the view tree.
 pixel/visual layout — the headless emulator's `screencap` returns black frames
 in this environment (a GPU limitation, not an app defect).
 
+## Offline behaviour
+
+- **Read cache** (`ReadCache`): the last successful child *Today* board and
+  *Progress* are cached on disk. Opened cold with no network → the cached
+  board is shown with a **"📴 offline — showing your last board"** banner
+  (`stale = true`). A fresh success overwrites the cache and clears the flag;
+  a `4xx` is never served from the cache. Cleared on "forget this device".
+- **Write queue** (`OfflineQueue`): "I did it" tapped offline (or on a `5xx`)
+  is queued and flushed on reconnect; a `409` on replay means "already
+  resolved" → dropped, not surfaced as an error (INV-11). Verified end to end
+  on device (debug): offline "I did it" → queued → reconnect → synced →
+  appears in the parent approvals queue.
+
+## Release engineering
+
+See [`RELEASE.md`](./RELEASE.md). Debug (`.debug` appId, dev backend, no
+minify) and release (R8 + resource shrink, `network_security_config` enforcing
+HTTPS except loopback, signed) build side by side. The **R8-minified release
+build is verified to run** against a live backend (proguard rules keep
+`kotlinx.serialization` + Retrofit). Backup/device-transfer of tokens is
+disabled (`data_extraction_rules.xml`). Adaptive launcher icon.
+
 ## Known limitations
 
-- **Offline "Today" has no read cache** — if the app is opened cold with no
-  network, `Today` shows an offline message rather than the last-known board.
-  Offline *marking* works once `Today` has loaded online (verified on device:
-  offline "I did it" → queued → reconnect → synced → appears in the parent
-  approvals queue).
 - No push / real-time celebration (poll only — matches the backend).
+- Runtime base-URL change persists (`.commit()`) and kills the process to
+  reload; a proper task-restart would be smoother.
 - Single `:app` module; a production split (`:core`, `:data`, `:ui`) is a
   reasonable later refactor.
-- iOS, Play Store packaging, analytics, monetization: out of scope (grant §24).
+- iOS, Play Store packaging / `.aab`, analytics, monetization: out of scope.

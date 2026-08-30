@@ -56,7 +56,12 @@ fun Loading(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ErrorRetry(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun ErrorRetry(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    onGrownUp: (() -> Unit)? = null,
+) {
     Column(
         modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -64,5 +69,6 @@ fun ErrorRetry(message: String, onRetry: () -> Unit, modifier: Modifier = Modifi
     ) {
         Text(message, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
         BigButton("Try again", modifier = Modifier.padding(top = 16.dp)) { onRetry() }
+        if (onGrownUp != null) SecondaryButton("Grown-up", modifier = Modifier.padding(top = 8.dp)) { onGrownUp() }
     }
 }

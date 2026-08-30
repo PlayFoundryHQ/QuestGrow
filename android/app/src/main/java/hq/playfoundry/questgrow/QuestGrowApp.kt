@@ -11,6 +11,7 @@ import hq.playfoundry.questgrow.data.ParentRepository
 import hq.playfoundry.questgrow.data.local.DataStoreTokenStore
 import hq.playfoundry.questgrow.data.local.FileOfflineQueue
 import hq.playfoundry.questgrow.data.local.OfflineQueue
+import hq.playfoundry.questgrow.data.local.ReadCache
 import hq.playfoundry.questgrow.data.local.TokenStore
 import hq.playfoundry.questgrow.data.net.ApiClientFactory
 import hq.playfoundry.questgrow.data.net.QuestGrowApi
@@ -43,8 +44,14 @@ class AppContainer(context: Context) {
     // baseUrl config lives in plain prefs (synchronous); Settings persists it
     // and the container is rebuilt on next launch.
     private val prefs = context.getSharedPreferences("questgrow_prefs", Context.MODE_PRIVATE)
-    val baseUrl: String = prefs.getString("base_url", null) ?: BuildConfig.DEFAULT_BASE_URL
-    fun setBaseUrl(url: String) = prefs.edit().putString("base_url", url.trim()).apply()
+    val baseUrl: String = prefs.getString("base_url", null)?.takeIf { it.isNotBlank() }
+        ?: BuildConfig.DEFAULT_BASE_URL
+
+    /** persisted synchronously — the caller restarts the process straight after. */
+    @Suppress("ApplySharedPref")
+    fun setBaseUrl(url: String) {
+        prefs.edit().putString("base_url", url.trim().ifBlank { BuildConfig.DEFAULT_BASE_URL }).commit()
+    }
 
     private val tokenProvider = TokenProvider {
         when (_activeScope.value) {
@@ -57,9 +64,10 @@ class AppContainer(context: Context) {
     val api: QuestGrowApi = ApiClientFactory.create(baseUrl, tokenProvider)
 
     private val queue: OfflineQueue = FileOfflineQueue(File(context.filesDir, "questgrow/offline_queue.json"))
+    val readCache = ReadCache(File(context.filesDir, "questgrow/cache"))
 
-    val authRepo = AuthRepository(api, tokenStore)
-    val childRepo = ChildRepository(api, queue)
+    val authRepo = AuthRepository(api, tokenStore, onForget = { readCache.clear() })
+    val childRepo = ChildRepository(api, queue, readCache)
     val parentRepo = ParentRepository(api)
 
     /** true when the device currently has validated internet. */

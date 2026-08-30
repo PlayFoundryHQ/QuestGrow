@@ -1,9 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// Optional real signing config — keystore.properties (gitignored) or env vars.
+// Absent → the release build falls back to the debug keystore so it is still
+// buildable/installable in CI and by contributors (documented in RELEASE.md).
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun ksProp(key: String, env: String): String? =
+    keystoreProps.getProperty(key) ?: System.getenv(env)
 
 android {
     namespace = "hq.playfoundry.questgrow"
@@ -13,21 +25,42 @@ android {
         applicationId = "hq.playfoundry.questgrow"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = (System.getenv("QG_VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("QG_VERSION_NAME") ?: "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
 
-        // default backend; overridable per build type / at runtime in Settings.
-        buildConfigField("String", "DEFAULT_BASE_URL", "\"http://10.0.2.2:8000/\"")
+    signingConfigs {
+        val storePath = ksProp("storeFile", "QG_KEYSTORE_FILE")
+        if (storePath != null) {
+            create("upload") {
+                storeFile = file(storePath)
+                storePassword = ksProp("storePassword", "QG_KEYSTORE_PASSWORD")
+                keyAlias = ksProp("keyAlias", "QG_KEY_ALIAS")
+                keyPassword = ksProp("keyPassword", "QG_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         debug {
             isMinifyEnabled = false
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            // dev backend: the emulator host loopback.
+            buildConfigField("String", "DEFAULT_BASE_URL", "\"http://10.0.2.2:8000/\"")
         }
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // real signing when configured, else debug key (buildable without secrets)
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
+            // must be overridden by the operator (Settings) or a build arg.
+            buildConfigField(
+                "String", "DEFAULT_BASE_URL",
+                "\"" + (System.getenv("QG_BACKEND_URL") ?: "https://questgrow.example/") + "\"",
+            )
         }
     }
 

@@ -17,6 +17,7 @@ import hq.playfoundry.questgrow.data.net.apiCall
 class AuthRepository(
     private val api: QuestGrowApi,
     private val tokens: TokenStore,
+    private val onForget: () -> Unit = {},
 ) {
     /** login + unlock in one call — returns the parent token, or the failure. */
     suspend fun signInAsParent(email: String, password: String, pin: String): ApiResult<Unit> {
@@ -59,5 +60,8 @@ class AuthRepository(
 
     suspend fun signOutParent() = tokens.setParentToken(null)
 
-    suspend fun forgetEverything() = tokens.clearAll()
+    suspend fun forgetEverything() {
+        tokens.clearAll()
+        onForget()
+    }
 }

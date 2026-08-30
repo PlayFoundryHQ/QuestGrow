@@ -111,8 +111,10 @@ private fun TodayScreen(
     val state by vm.today.collectAsStateSafe()
     when (val s = state) {
         is TodayUi.Loading -> Loading()
-        is TodayUi.NeedsCode -> CodeEntry(onCode = vm::setCode)
-        is TodayUi.Error -> if (s.authExpired) CodeEntry(onCode = vm::setCode) else ErrorRetry(s.message, vm::refresh)
+        is TodayUi.NeedsCode -> CodeEntry(onCode = vm::setCode, onGrownUp = onExit)
+        is TodayUi.Error ->
+            if (s.authExpired) CodeEntry(onCode = vm::setCode, onGrownUp = onExit)
+            else ErrorRetry(s.message, vm::refresh, onGrownUp = onExit)
         is TodayUi.Ready -> {
             val view = s.view
             LaunchedEffect(view.onDate) {
@@ -122,6 +124,12 @@ private fun TodayScreen(
             }
             Column(Modifier.fillMaxSize().padding(16.dp)) {
                 Text("QuestGrow", style = MaterialTheme.typography.headlineMedium)
+                if (view.stale) Text(
+                    "📴 You're offline — showing your last board",
+                    Modifier.fillMaxWidth().semantics { contentDescription = "Offline. Showing your last board." },
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.labelLarge,
+                )
                 if (s.queued > 0) Text("${s.queued} waiting to send", color = MaterialTheme.colorScheme.secondary)
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(150.dp),
@@ -280,11 +288,12 @@ private fun ChildProgressScreen(vm: ChildViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun CodeEntry(onCode: (String) -> Unit) {
+private fun CodeEntry(onCode: (String) -> Unit, onGrownUp: () -> Unit) {
     var code by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
         Text("Ask your grown-up for your code.", style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(value = code, onValueChange = { code = it }, label = { Text("Code") }, modifier = Modifier.fillMaxWidth())
         BigButton("Start", enabled = code.isNotBlank()) { onCode(code.trim()) }
+        SecondaryButton("Grown-up") { onGrownUp() }
     }
 }

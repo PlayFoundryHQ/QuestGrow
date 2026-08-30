@@ -74,6 +74,10 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.authRepo.signOutParent(); set { ParentState() } }
     }
 
+    fun forgetDevice() {
+        viewModelScope.launch { container.authRepo.forgetEverything(); set { ParentState() } }
+    }
+
     fun refreshFamily() {
         viewModelScope.launch {
             handle(repo.children()) { kids ->

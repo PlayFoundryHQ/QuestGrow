@@ -47,7 +47,7 @@ fun ParentFlow(container: AppContainer, onExit: () -> Unit) {
     val s by vm.state.collectAsStateSafe()
 
     if (!s.signedIn) {
-        SignInScreen(vm, onExit)
+        SignInScreen(vm, onExit, container)
         return
     }
 
@@ -69,18 +69,20 @@ fun ParentFlow(container: AppContainer, onExit: () -> Unit) {
                 3 -> QuestsTab(vm)
                 4 -> RewardsTab(vm)
                 5 -> OwnershipTab(vm)
-                6 -> SettingsTab(vm, onExit)
+                6 -> SettingsTab(vm, onExit, container)
             }
         }
     }
 }
 
 @Composable
-private fun SignInScreen(vm: ParentViewModel, onExit: () -> Unit) {
+private fun SignInScreen(vm: ParentViewModel, onExit: () -> Unit, container: AppContainer) {
     val s by vm.state.collectAsStateSafe()
     var email by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf("") }
+    var showServer by remember { mutableStateOf(false) }
+    var server by remember { mutableStateOf(container.baseUrl) }
     Column(
         Modifier.fillMaxSize().padding(24.dp).testTag("sign_in"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -97,6 +99,14 @@ private fun SignInScreen(vm: ParentViewModel, onExit: () -> Unit) {
         SecondaryButton("Create account") { vm.signUp(email, pw, pin) }
         Text("The PIN is the parent gate — required every session.", style = MaterialTheme.typography.labelLarge)
         s.message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        SecondaryButton(if (showServer) "Hide server" else "Backend server") { showServer = !showServer }
+        if (showServer) {
+            OutlinedTextField(server, { server = it }, label = { Text("Backend URL") }, modifier = Modifier.fillMaxWidth())
+            SecondaryButton("Save & restart") {
+                container.setBaseUrl(server)
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }
+        }
         SecondaryButton("Back") { onExit() }
     }
 }
@@ -273,8 +283,9 @@ private fun OwnershipTab(vm: ParentViewModel) {
 }
 
 @Composable
-private fun SettingsTab(vm: ParentViewModel, onExit: () -> Unit) {
+private fun SettingsTab(vm: ParentViewModel, onExit: () -> Unit, container: AppContainer) {
     var notif by remember { mutableStateOf(false) }
+    var server by remember { mutableStateOf(container.baseUrl) }
     sectionCard("Notifications") {
         Text("Off by default. Informational only — never loss-framed, never sent to the child.",
             style = MaterialTheme.typography.labelLarge)
@@ -287,8 +298,17 @@ private fun SettingsTab(vm: ParentViewModel, onExit: () -> Unit) {
         Text("The PIN is required every session. Set at account creation; changing it is post-MVP.",
             style = MaterialTheme.typography.labelLarge)
     }
+    sectionCard("Backend server") {
+        Text("Which QuestGrow backend this device talks to.", style = MaterialTheme.typography.labelLarge)
+        field("Backend URL", server, { server = it })
+        SecondaryButton("Save & restart app") {
+            container.setBaseUrl(server)
+            android.os.Process.killProcess(android.os.Process.myPid())
+        }
+    }
     sectionCard("Session") {
         SecondaryButton("Sign out") { vm.signOut() }
+        SecondaryButton("Forget this device") { vm.forgetDevice() }
         SecondaryButton("Switch to kid mode") { onExit() }
     }
 }
