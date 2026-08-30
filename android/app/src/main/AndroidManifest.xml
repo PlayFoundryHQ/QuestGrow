@@ -4,6 +4,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!--
+      Android 11+ package visibility: without this, TextToSpeech cannot see or
+      bind to a TTS engine that lives in a separate app (e.g. AvaCore), even
+      when it is the system default. This is what makes tap-to-hear work.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <package android:name="com.github.opscalehub.avacore" />
+    </queries>
+
     <application
         android:name=".QuestGrowApp"
         android:allowBackup="false"

@@ -21,6 +21,7 @@ import hq.playfoundry.questgrow.ui.persianRtl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -75,8 +76,11 @@ class AppContainer(context: Context) {
     /** true when the device currently has validated internet. */
     val online = MutableStateFlow(true)
 
+    private var cm: ConnectivityManager? = null
+    private var netCallback: ConnectivityManager.NetworkCallback? = null
+
     fun observeConnectivity(context: Context) {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) { online.value = true; flush() }
             override fun onLost(network: Network) { online.value = false }
@@ -84,13 +88,23 @@ class AppContainer(context: Context) {
                 online.value = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
             }
         }
-        runCatching { cm.registerDefaultNetworkCallback(cb) }
+        if (runCatching { manager.registerDefaultNetworkCallback(cb) }.isSuccess) {
+            cm = manager; netCallback = cb
+        }
     }
 
     fun flush() {
         if (_activeScope.value == Scope.CHILD || tokenStore.childTokenBlocking() != null) {
             appScope.launch { runCatching { childRepo.flushQueue() } }
         }
+    }
+
+    /** Release the connectivity callback and scope. Called before a rebuild so
+     *  a retargeted container doesn't leak the previous one's callbacks. */
+    fun close() {
+        netCallback?.let { cb -> runCatching { cm?.unregisterNetworkCallback(cb) } }
+        netCallback = null; cm = null
+        runCatching { appScope.cancel() }
     }
 }
 
@@ -111,6 +125,7 @@ class QuestGrowApp : Application() {
      *  retarget the backend URL without a process restart; harmless in prod. */
     @androidx.annotation.VisibleForTesting
     fun rebuildContainer() {
+        runCatching { container.close() }
         container = AppContainer(this)
         container.observeConnectivity(this)
     }

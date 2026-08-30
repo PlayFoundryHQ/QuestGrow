@@ -184,6 +184,10 @@
     <string name="settings_notif_verified">یادداشت آرام وقتی یک کار تأیید شد</string>
     <string name="settings_gate">در والد</string>
     <string name="settings_gate_help">رمز هر بار لازم است. موقع ساختن حساب تعیین می‌شود.</string>
+    <string name="settings_voice">صدای فارسی</string>
+    <string name="settings_voice_status">وضعیت: %1$s</string>
+    <string name="settings_voice_test">امتحان صدا</string>
+    <string name="settings_voice_help">دکمهٔ «بشنو» در صفحهٔ کودک وقتی نشان داده می‌شود که یک موتور TTS فارسی (مثل AvaCore) نصب و پیش‌فرض باشد.</string>
     <string name="settings_backend">سرور</string>
     <string name="settings_backend_help">این دستگاه به کدام سرور QuestGrow وصل است.</string>
     <string name="settings_backend_url">آدرس سرور</string>

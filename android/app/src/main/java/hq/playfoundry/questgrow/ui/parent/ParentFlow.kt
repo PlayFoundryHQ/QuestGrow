@@ -422,6 +422,15 @@ private fun Settings(vm: ParentViewModel, container: AppContainer) {
         }
     }
     HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    SectionHeader(stringResource(R.string.settings_voice))
+    val narrator = hq.playfoundry.questgrow.ui.child.rememberNarrator()
+    HintText(stringResource(R.string.settings_voice_status, narrator.status))
+    SecondaryButton(stringResource(R.string.settings_voice_test), enabled = narrator.hasVoice) {
+        narrator.say("سلام! این صدای فارسی است.")
+    }
+    HintText(stringResource(R.string.settings_voice_help))
+
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
     SectionHeader(stringResource(R.string.settings_backend))
     HintText(stringResource(R.string.settings_backend_help))
     Field(stringResource(R.string.settings_backend_url), url, { url = it }, ltr = true)
