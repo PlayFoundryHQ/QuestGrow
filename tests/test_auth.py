@@ -45,6 +45,31 @@ def _bootstrap(client) -> tuple[dict, dict]:
     return ph, {"Authorization": f"Bearer {ctok}"}
 
 
+def test_pairing_code_exchanges_for_a_child_token(app_ctx):
+    client, _, _ = app_ctx
+    ph, _ = _bootstrap(client)
+    code = client.post("/auth/pairing-code", json={"child_id": "mia"}, headers=ph).json()["code"]
+    assert len(code) == 6 and code.isdigit()
+    r = client.post("/auth/pair", json={"code": code})
+    assert r.status_code == 200
+    ctok = r.json()["child_token"]
+    # the freshly paired token works on the child surface
+    assert client.get(
+        "/me/today", params={"day": DAY}, headers={"Authorization": f"Bearer {ctok}"}
+    ).status_code == 200
+    # single use — a second redemption fails
+    assert client.post("/auth/pair", json={"code": code}).status_code in (401, 403)
+
+
+def test_pairing_code_requires_the_parent_gate(app_ctx):
+    client, _, _ = app_ctx
+    ph, ch = _bootstrap(client)
+    # a child token cannot mint a pairing code
+    assert client.post("/auth/pairing-code", json={"child_id": "mia"}, headers=ch).status_code == 403
+    # a bogus code never pairs
+    assert client.post("/auth/pair", json={"code": "000000"}).status_code in (401, 403)
+
+
 def test_session_token_is_not_a_parent_scope(app_ctx):
     client, _, _ = app_ctx
     client.post("/auth/signup", json={"email": "p@x.com", "password": "hunter2", "pin": "2468"})

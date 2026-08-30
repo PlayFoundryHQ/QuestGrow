@@ -119,7 +119,7 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
         }
 
     fun issueChildCode(childId: String) = viewModelScope.launch {
-        action(container.authRepo.issueChildToken(childId)) { code -> set { it.copy(lastChildCode = code) } }
+        action(container.authRepo.createPairingCode(childId)) { code -> set { it.copy(lastChildCode = code) } }
     }
 
     // ---- quests ----

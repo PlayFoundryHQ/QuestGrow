@@ -60,8 +60,10 @@ private enum class Screen { Onboarding, Kid, Gate, Parent }
  */
 @Composable
 private fun AppRoot(container: AppContainer) {
-    val onboarded = remember { container.authRepo.isOnboarded() }
-    var screen by remember { mutableStateOf(if (onboarded) Screen.Kid else Screen.Onboarding) }
+    val provisioned = remember {
+        container.authRepo.isOnboarded() || container.tokenStore.childTokenBlocking() != null
+    }
+    var screen by remember { mutableStateOf(if (provisioned) Screen.Kid else Screen.Onboarding) }
 
     when (screen) {
         Screen.Onboarding -> OnboardingFlow(container, onDone = { screen = Screen.Kid })

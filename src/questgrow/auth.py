@@ -132,6 +132,29 @@ class AuthService:
         self._svc._parent_owns_child(sc, child_id)  # NotFound / AuthorizationError
         return self._issue("child", sc.account_id, child_id, None)
 
+    # -- pairing a child's own device: a short-lived 6-digit code ----
+    def create_pairing_code(self, *, parent_token: str, child_id: str) -> str:
+        sc = self.resolve(parent_token)
+        if not isinstance(sc, ParentScope):
+            raise AuthorizationError("a valid parent-gate token is required")
+        self._svc._parent_owns_child(sc, child_id)
+        for _ in range(10):
+            code = f"{secrets.randbelow(1_000_000):06d}"
+            if self._store.get_token(code) is None:
+                self._store.put_token(
+                    code, AuthToken("pair", sc.account_id, child_id,
+                                    _now() + timedelta(minutes=15)))
+                return code
+        raise AuthorizationError("could not allocate a code, try again")
+
+    def redeem_pairing_code(self, *, code: str) -> str:
+        code = code.strip()
+        t = self._store.get_token(code)
+        if t is None or t.kind != "pair" or self._expired(t):
+            raise AuthorizationError("invalid or expired code")
+        self._store.delete_token(code)
+        return self._issue("child", t.account_id, t.child_id, None)
+
     # -- resolution (the api seam) -----------------------------
     def resolve(self, token: str) -> Scope | None:
         t = self._store.get_token(token)

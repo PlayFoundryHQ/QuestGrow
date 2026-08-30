@@ -19,6 +19,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class LoginResp(@SerialName("session_token") val sessionToken: String)
 @Serializable data class UnlockResp(@SerialName("parent_token") val parentToken: String)
 @Serializable data class ChildTokenResp(@SerialName("child_token") val childToken: String)
+@Serializable data class PairBody(val code: String)
+@Serializable data class PairCodeResp(val code: String)
 
 // ---- errors -------------------------------------------------------------
 @Serializable data class ApiError(val detail: String = "", val code: String = "error")

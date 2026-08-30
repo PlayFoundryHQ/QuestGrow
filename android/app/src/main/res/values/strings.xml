@@ -143,4 +143,10 @@
     <string name="code_created">کد: %1$s</string>
     <string name="onb_next">بعدی</string>
     <string name="err_offline">آفلاین — الان نمی‌شود این را انجام داد.</string>
+    <string name="onb_who">این دستگاه برای کیست؟</string>
+    <string name="onb_who_parent">برای من (بزرگتر)</string>
+    <string name="onb_who_child">دستگاه کودک</string>
+    <string name="pair_enter">کد ۶ رقمی را وارد کن</string>
+    <string name="pair_wrong">کد درست نیست یا منقضی شده</string>
+    <string name="settings_pair_help">برای دستگاه جداگانهٔ کودک: این عدد را آنجا وارد کنید.</string>
 </resources>

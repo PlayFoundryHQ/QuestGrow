@@ -22,6 +22,8 @@ interface QuestGrowApi {
     @POST("v1/auth/login") suspend fun login(@Body body: LoginBody): Response<LoginResp>
     @POST("v1/auth/unlock") suspend fun unlock(@Body body: UnlockBody): Response<UnlockResp>
     @POST("v1/auth/child-token") suspend fun childToken(@Body body: ChildTokenBody): Response<ChildTokenResp>
+    @POST("v1/auth/pairing-code") suspend fun pairingCode(@Body body: ChildTokenBody): Response<PairCodeResp>
+    @POST("v1/auth/pair") suspend fun pair(@Body body: PairBody): Response<ChildTokenResp>
 
     @GET("health") suspend fun health(): Response<HealthResp>
 

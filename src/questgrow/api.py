@@ -279,6 +279,14 @@ class ChildTokenIn(BaseModel):
     child_id: str
 
 
+class PairingCodeIn(BaseModel):
+    child_id: str
+
+
+class PairIn(BaseModel):
+    code: str
+
+
 def create_app(
     service: QuestGrowService | None = None,
     tokens: TokenStore | None = None,
@@ -379,6 +387,16 @@ def create_app(
             # _parent already validated the parent-gate token; pass it through
             tok = auth.issue_child_token(parent_token=authorization[7:], child_id=body.child_id)
             return {"child_token": tok}
+
+        @router.post("/auth/pairing-code")
+        def pairing_code(body: PairingCodeIn, authorization: str = Header(default=""),
+                         p: ParentScope = Depends(_parent)):
+            code = auth.create_pairing_code(parent_token=authorization[7:], child_id=body.child_id)
+            return {"code": code}
+
+        @router.post("/auth/pair")
+        def pair(body: PairIn):
+            return {"child_token": auth.redeem_pairing_code(code=body.code)}
 
     def _quest_out(q) -> QuestOut:
         return QuestOut(

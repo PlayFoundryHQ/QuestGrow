@@ -85,6 +85,24 @@ class AuthRepository(
 
     suspend fun useChildToken(token: String) = tokens.setChildToken(token.trim())
 
+    /** Parent (unlocked) mints a short 6-digit code for a child's own device. */
+    suspend fun createPairingCode(childId: String): ApiResult<String> =
+        apiCall { api.pairingCode(hq.playfoundry.questgrow.data.net.ChildTokenBody(childId)) }.let { r ->
+            when (r) {
+                is ApiResult.Ok -> ApiResult.Ok(r.value.code)
+                is ApiResult.Failure -> r
+                is ApiResult.Offline -> r
+            }
+        }
+
+    /** Child device: exchange a 6-digit code for its long-lived child token. */
+    suspend fun pairWithCode(code: String): ApiResult<Unit> =
+        when (val r = apiCall { api.pair(hq.playfoundry.questgrow.data.net.PairBody(code.trim())) }) {
+            is ApiResult.Ok -> { tokens.setChildToken(r.value.childToken); ApiResult.Ok(Unit) }
+            is ApiResult.Failure -> r
+            is ApiResult.Offline -> r
+        }
+
     suspend fun signOutParent() = tokens.setParentToken(null)
 
     suspend fun forgetEverything() {

@@ -38,12 +38,13 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
 
-private enum class Step { Account, Child, Routines }
+private enum class Step { Who, Account, Child, Routines, Pair }
 
-/** Guided first-run: account+PIN → add child → pick a few routines → kid board. */
+/** Guided first-run: pick who owns the device → parent wizard, or a child
+ *  device pairs with a 6-digit code. */
 @Composable
 fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
-    var step by remember { mutableStateOf(Step.Account) }
+    var step by remember { mutableStateOf(Step.Who) }
     var email by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf("") }
@@ -72,6 +73,30 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
         when (step) {
+            Step.Who -> {
+                Text(stringResource(R.string.onb_who), style = MaterialTheme.typography.headlineSmall)
+                BigButton(stringResource(R.string.onb_who_parent)) { step = Step.Account }
+                SecondaryButton(stringResource(R.string.onb_who_child), minHeight = 64.dp) { step = Step.Pair }
+            }
+
+            Step.Pair -> {
+                var code by remember { mutableStateOf("") }
+                var wrong by remember { mutableStateOf(false) }
+                Text(stringResource(R.string.pair_enter), style = MaterialTheme.typography.headlineSmall)
+                if (wrong) Text(stringResource(R.string.pair_wrong), color = MaterialTheme.colorScheme.error)
+                hq.playfoundry.questgrow.ui.DigitPad(value = code, onValue = { code = it; wrong = false }, length = 6)
+                BigButton(stringResource(R.string.code_start), enabled = !busy && code.length == 6) {
+                    busy = true; error = null
+                    scope.launch {
+                        when (val r = container.authRepo.pairWithCode(code)) {
+                            is ApiResult.Ok -> { busy = false; onDone() }
+                            else -> { wrong = true; busy = false }
+                        }
+                    }
+                }
+                SecondaryButton(stringResource(R.string.back), minHeight = 56.dp) { step = Step.Who }
+            }
+
             Step.Account -> {
                 Text(stringResource(R.string.onb_account_title), style = MaterialTheme.typography.headlineSmall)
                 Field(stringResource(R.string.onb_email), email, { email = it }, keyboard = KeyboardType.Email)

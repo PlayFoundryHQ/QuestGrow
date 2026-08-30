@@ -335,8 +335,16 @@ private fun Settings(vm: ParentViewModel, container: AppContainer) {
     }
     HorizontalDivider(Modifier.padding(vertical = 8.dp))
     Text(stringResource(R.string.settings_child_code), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.settings_pair_help), style = MaterialTheme.typography.bodyMedium)
     BigButton(stringResource(R.string.settings_create_code), enabled = childId != null) { childId?.let { vm.issueChildCode(it) } }
-    s.lastChildCode?.let { Text(stringResource(R.string.code_created, it), style = MaterialTheme.typography.bodyMedium) }
+    s.lastChildCode?.let {
+        Text(
+            it.faDigits(),
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.displaySmall,
+        )
+    }
     HorizontalDivider(Modifier.padding(vertical = 8.dp))
     Text(stringResource(R.string.settings_backend), style = MaterialTheme.typography.titleMedium)
     Text(stringResource(R.string.settings_backend_help), style = MaterialTheme.typography.bodyMedium)
