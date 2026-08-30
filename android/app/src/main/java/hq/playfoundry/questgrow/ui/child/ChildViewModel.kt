@@ -51,9 +51,10 @@ class ChildViewModel(private val container: AppContainer) : ViewModel() {
             when (val r = container.childRepo.today(today())) {
                 is ApiResult.Ok -> _today.value = TodayUi.Ready(r.value, container.childRepo.pendingCount())
                 is ApiResult.Offline ->
-                    _today.value = TodayUi.Error("You're offline. Your grown-up's code lets you do quests again when you reconnect.")
+                    _today.value = TodayUi.Error("الان به اینترنت وصل نیستی. یک کم دیگر دوباره امتحان کن.")
                 is ApiResult.Failure ->
-                    _today.value = TodayUi.Error(r.detail.ifBlank { "Something went wrong." }, authExpired = r.isAuthExpired)
+                    if (r.isAuthExpired) _today.value = TodayUi.NeedsCode
+                    else _today.value = TodayUi.Error(r.detail.ifBlank { "یک مشکلی پیش آمد." })
             }
         }
     }
