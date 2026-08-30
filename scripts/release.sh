@@ -27,6 +27,8 @@ for a in "${@:2}"; do case "$a" in
 esac; done
 
 say() { echo; echo "━━ $*"; }
+: "${ANDROID_HOME:=${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
+[[ -d "$ANDROID_HOME" ]] && export ANDROID_HOME
 
 say "preflight"
 [[ -z "$(git status --porcelain)" ]]              || { echo "working tree not clean"; exit 1; }

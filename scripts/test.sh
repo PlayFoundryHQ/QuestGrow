@@ -6,6 +6,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# convenience: default the SDK location if it's the usual one
+: "${ANDROID_HOME:=${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
+[[ -d "$ANDROID_HOME" ]] && export ANDROID_HOME
+
 what="${1:-all}"
 fail=0
 
