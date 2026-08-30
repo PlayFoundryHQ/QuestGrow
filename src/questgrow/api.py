@@ -208,6 +208,33 @@ class RedemptionOut(BaseModel):
     state: str
 
 
+class PendingRedemptionOut(BaseModel):
+    id: str
+    child_id: str
+    child_name: str
+    reward_id: str
+    reward_name: str
+    reward_icon: str
+    cost: int
+    requested_at: datetime
+
+
+class MeRewardOut(BaseModel):
+    reward_id: str
+    name: str
+    icon: str
+    cost: int
+    mode: RedemptionMode
+    affordable: bool
+    pending: bool
+
+
+class MeRewardsOut(BaseModel):
+    child_id: str
+    spendable_balance: int
+    rewards: list[MeRewardOut]
+
+
 # --- child-facing (INV-8: NO stage / level / readiness field) ---------- #
 class TodayItemOut(BaseModel):
     quest_id: str
@@ -565,6 +592,19 @@ def create_app(
         r = svc.decline_redemption(p, redemption_id=redemption_id)
         return RedemptionOut(id=r.id, reward_id=r.reward_id, state=r.state.value)
 
+    @router.get("/redemptions", response_model=list[PendingRedemptionOut])
+    def list_redemptions(p: ParentScope = Depends(_parent)):
+        return [
+            PendingRedemptionOut(
+                id=red.id, child_id=child.child_id, child_name=child.name,
+                reward_id=(rw.reward_id if rw else red.reward_id),
+                reward_name=(rw.name if rw else red.reward_id),
+                reward_icon=(rw.icon if rw else "🎁"),
+                cost=(rw.cost if rw else 0), requested_at=red.requested_at,
+            )
+            for red, rw, child in svc.list_pending_redemptions(p)
+        ]
+
     # -- parent: clock (admin; domain calls take no scope) -----
     @router.post("/clock/materialise")
     def materialise(body: DayIn, p: ParentScope = Depends(_parent)):
@@ -601,6 +641,20 @@ def create_app(
     def me_redeem(reward_id: str, c: ChildScope = Depends(_child)):
         r = svc.redeem_reward(c, child_id=c.child_id, reward_id=reward_id)
         return RedemptionOut(id=r.id, reward_id=r.reward_id, state=r.state.value)
+
+    @router.get("/me/rewards", response_model=MeRewardsOut)
+    def me_rewards(c: ChildScope = Depends(_child)):
+        balance, rows = svc.list_rewards_for_child(c, child_id=c.child_id)
+        return MeRewardsOut(
+            child_id=c.child_id, spendable_balance=balance,
+            rewards=[
+                MeRewardOut(
+                    reward_id=r.reward_id, name=r.name, icon=r.icon, cost=r.cost,
+                    mode=r.redemption_mode, affordable=balance >= r.cost, pending=pending,
+                )
+                for r, pending in rows
+            ],
+        )
 
     @router.get("/me/celebrations", response_model=list[CelebrationOut])
     def me_celebrations(since: datetime | None = Depends(_since), c: ChildScope = Depends(_child)):

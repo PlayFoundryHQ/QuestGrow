@@ -142,6 +142,24 @@ class ChildRepository(
                 ?: r
         }
 
+    suspend fun rewards(): ApiResult<hq.playfoundry.questgrow.data.model.KidRewards> =
+        when (val r = apiCall { api.meRewards() }) {
+            is ApiResult.Ok -> ApiResult.Ok(
+                hq.playfoundry.questgrow.data.model.KidRewards(
+                    spendableBalance = r.value.spendableBalance,
+                    rewards = r.value.rewards.map {
+                        hq.playfoundry.questgrow.data.model.KidReward(
+                            rewardId = it.rewardId, name = it.name, icon = it.icon, cost = it.cost,
+                            needsGrownup = it.mode != "self_service",
+                            affordable = it.affordable, pending = it.pending,
+                        )
+                    },
+                ),
+            )
+            is ApiResult.Failure -> r
+            is ApiResult.Offline -> r
+        }
+
     suspend fun redeem(rewardId: String): ApiResult<String> =
         apiCall { api.redeem(rewardId) }.let { r ->
             when (r) {

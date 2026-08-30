@@ -6,8 +6,10 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +25,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +37,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,10 +57,13 @@ import androidx.navigation.compose.rememberNavController
 import hq.playfoundry.questgrow.AppContainer
 import hq.playfoundry.questgrow.R
 import hq.playfoundry.questgrow.data.model.CompletionOutcome
+import hq.playfoundry.questgrow.data.model.KidReward
 import hq.playfoundry.questgrow.data.model.QuestVisualState
+import hq.playfoundry.questgrow.data.model.RedeemOutcome
 import hq.playfoundry.questgrow.data.model.TodayQuest
 import hq.playfoundry.questgrow.ui.BigButton
 import hq.playfoundry.questgrow.ui.Loading
+import hq.playfoundry.questgrow.ui.SecondaryButton
 import hq.playfoundry.questgrow.ui.collectAsStateSafe
 import hq.playfoundry.questgrow.ui.fa
 import hq.playfoundry.questgrow.ui.isReducedMotion
@@ -70,6 +81,7 @@ fun ChildFlow(container: AppContainer, onGrownUps: () -> Unit) {
                 vm, narrator, onGrownUps = onGrownUps,
                 onOpen = { q -> nav.navigate("doit/${q.questId}/${q.title}/${q.icon}") },
                 onProgress = { vm.loadProgress(); nav.navigate("progress") },
+                onRewards = { vm.loadRewards(); nav.navigate("rewards") },
             )
         }
         composable("doit/{qid}/{title}/{icon}") { e ->
@@ -90,6 +102,35 @@ fun ChildFlow(container: AppContainer, onGrownUps: () -> Unit) {
         composable("waiting") { WaitingScreen { nav.popBackStack("today", false) } }
         composable("celebrate") { CelebrationScreen(vm) { vm.clearCelebration(); nav.popBackStack("today", false) } }
         composable("progress") { ProgressScreen(vm) { nav.popBackStack() } }
+        composable("rewards") { RewardsScreen(vm, narrator) { nav.popBackStack() } }
+    }
+}
+
+@Composable
+private fun AvatarRow(vm: ChildViewModel) {
+    val kids by vm.deviceChildren.collectAsStateSafe()
+    val active by vm.activeChildId.collectAsStateSafe()
+    if (kids.size < 2) return
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        kids.forEach { k ->
+            val on = k.childId == active
+            AssistChip(
+                onClick = { vm.switchChild(k.childId) },
+                label = { Text(k.name, style = MaterialTheme.typography.titleMedium) },
+                leadingIcon = { Text(k.name.take(1)) },
+                colors = if (on) AssistChipDefaults.assistChipColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ) else AssistChipDefaults.assistChipColors(),
+                border = if (on) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else AssistChipDefaults.assistChipBorder(true),
+                modifier = Modifier.heightIn(min = 44.dp)
+                    .semantics { contentDescription = k.name + (if (on) "، انتخاب‌شده" else "") },
+            )
+        }
     }
 }
 
@@ -101,6 +142,7 @@ private fun TodayScreen(
     onGrownUps: () -> Unit,
     onOpen: (TodayQuest) -> Unit,
     onProgress: () -> Unit,
+    onRewards: () -> Unit,
 ) {
     val state by vm.today.collectAsStateSafe()
     when (val s = state) {
@@ -116,7 +158,7 @@ private fun TodayScreen(
         }
         is TodayUi.Ready -> {
             val view = s.view
-            LaunchedEffect(view.onDate) {
+            LaunchedEffect(view.onDate, view.childId) {
                 if (view.profile.autoReadOnOpen) {
                     narrator.say(view.visibleQuests.joinToString("، ") { it.title })
                 }
@@ -135,6 +177,7 @@ private fun TodayScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                AvatarRow(vm)
                 if (view.stale) Text(
                     stringResource(R.string.kid_offline_banner),
                     Modifier.fillMaxWidth().padding(vertical = 6.dp)
@@ -165,10 +208,19 @@ private fun TodayScreen(
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleLarge,
                 )
-                TextButton(
-                    onClick = onProgress,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                ) { Text("⭐ " + stringResource(R.string.kid_stars), style = MaterialTheme.typography.titleMedium) }
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SecondaryButton(
+                        "⭐ " + stringResource(R.string.kid_stars),
+                        Modifier.weight(1f), minHeight = 56.dp, onClick = onProgress,
+                    )
+                    SecondaryButton(
+                        stringResource(R.string.kid_rewards),
+                        Modifier.weight(1f), minHeight = 56.dp, onClick = onRewards,
+                    )
+                }
             }
         }
     }
@@ -298,6 +350,109 @@ private fun ProgressScreen(vm: ChildViewModel, onBack: () -> Unit) {
         Text(stringResource(R.string.kid_stars), style = MaterialTheme.typography.titleLarge)
         Text("${(p?.lifetimeAchievement ?: 0).fa()} ⭐", style = MaterialTheme.typography.headlineSmall)
         Text(stringResource(R.string.kid_to_spend, (p?.spendableBalance ?: 0).fa()))
+    }
+}
+
+@Composable
+private fun RewardsScreen(vm: ChildViewModel, narrator: Narrator, onBack: () -> Unit) {
+    val state by vm.rewards.collectAsStateSafe()
+    var asking by remember { mutableStateOf<KidReward?>(null) }
+    var flash by remember { mutableStateOf<String?>(null) }
+    val askedGrownupText = stringResource(R.string.kid_reward_asked)
+
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        TextButton(onClick = onBack) {
+            Text("‹ " + stringResource(R.string.back), style = MaterialTheme.typography.titleMedium)
+        }
+        Text(stringResource(R.string.kid_rewards_title), style = MaterialTheme.typography.headlineSmall)
+
+        when (val s = state) {
+            is RewardsUi.Loading -> Loading(Modifier.height(120.dp))
+            is RewardsUi.Error -> {
+                Text(s.message, style = MaterialTheme.typography.titleMedium)
+                BigButton(stringResource(R.string.retry)) { vm.loadRewards() }
+            }
+            is RewardsUi.Ready -> {
+                Text(
+                    stringResource(R.string.kid_balance, s.rewards.spendableBalance.fa()),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                flash?.let {
+                    Text(it, Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+                }
+                if (s.rewards.rewards.isEmpty()) {
+                    Text(stringResource(R.string.kid_rewards_empty), style = MaterialTheme.typography.bodyLarge)
+                }
+                s.rewards.rewards.forEach { r -> RewardCard(r) { asking = r } }
+            }
+        }
+    }
+
+    asking?.let { r ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { asking = null },
+            title = { Text(stringResource(R.string.kid_reward_ask_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${r.icon}  ${r.name}", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.kid_reward_ask_body, r.cost.fa()))
+                    if (r.needsGrownup) Text(stringResource(R.string.kid_reward_ask_grownup))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val chosen = r
+                    asking = null
+                    vm.redeem(chosen) { outcome ->
+                        flash = when (outcome) {
+                            is RedeemOutcome.Granted -> { narrator.say(chosen.name); "🎉 ${chosen.name}" }
+                            is RedeemOutcome.AskedGrownup -> askedGrownupText
+                            is RedeemOutcome.Rejected -> outcome.detail
+                        }
+                    }
+                }) { Text(stringResource(R.string.yes)) }
+            },
+            dismissButton = { TextButton(onClick = { asking = null }) { Text(stringResource(R.string.no)) } },
+        )
+    }
+}
+
+@Composable
+private fun RewardCard(r: KidReward, onGet: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(r.icon.ifBlank { "🎁" }, fontSize = 40.sp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(r.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.kid_reward_cost, r.cost.fa()),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            when {
+                r.pending -> Text(
+                    stringResource(R.string.kid_reward_pending),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+                r.affordable -> SecondaryButton(
+                    stringResource(R.string.kid_reward_get), minHeight = 56.dp, onClick = onGet,
+                )
+                else -> Text(
+                    stringResource(R.string.kid_reward_locked),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }
 

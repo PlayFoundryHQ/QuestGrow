@@ -51,6 +51,7 @@ class AppFlowTest {
 
     private fun dispatcher(completeState: String = "pending", boardState: String? = null) = object : Dispatcher() {
         var approved = false
+        var granted = false
         override fun dispatch(req: RecordedRequest): MockResponse {
             val p = req.path.orEmpty()
             fun ok(b: String) = MockResponse().setResponseCode(200).setBody(b)
@@ -58,6 +59,15 @@ class AppFlowTest {
                 p.startsWith("/v1/me/today") -> ok(todayBoard(boardState))
                 p.startsWith("/v1/me/quests/") && p.endsWith("/complete") -> ok("""{"quest_id":"teeth","state":"$completeState"}""")
                 p.startsWith("/v1/me/celebrations") -> ok("""[{"quest_id":"teeth","on_date":"${today()}","points_awarded":10,"at":"2026-08-30T09:00:00+00:00"}]""")
+                p == "/v1/me/rewards" && req.method == "GET" -> ok(
+                    """{"child_id":"kid","spendable_balance":10,"rewards":[{"reward_id":"ice","name":"بستنی","icon":"🍦","cost":5,"mode":"parent_confirmed","affordable":true,"pending":${granted}}]}""",
+                )
+                p.startsWith("/v1/me/rewards/") && p.endsWith("/redeem") -> { granted = true; ok("""{"id":"rr1","reward_id":"ice","state":"pending"}""") }
+                p == "/v1/redemptions" && req.method == "GET" -> ok(
+                    if (granted) "[]"
+                    else """[{"id":"rr1","child_id":"kid","child_name":"سارا","reward_id":"ice","reward_name":"بستنی","reward_icon":"🍦","cost":5,"requested_at":"2026-08-30T09:00:00+00:00"}]""",
+                )
+                p.endsWith("/grant") -> { granted = true; ok("""{"id":"rr1","reward_id":"ice","state":"granted"}""") }
                 p.startsWith("/v1/me/progress") -> ok("""{"child_id":"kid","lifetime_achievement":30,"spendable_balance":20,"week_active_days":3}""")
                 p == "/v1/auth/login" -> ok("""{"session_token":"s1"}""")
                 p == "/v1/auth/unlock" ->
@@ -174,8 +184,7 @@ class AppFlowTest {
 
     @Test fun parentGate_wrongPin_thenCorrect_opensHome() {
         provisionParent()
-        compose.waitForIdle()
-        // long-press the corner gate
+        awaitDesc("بزرگترها")
         compose.onNodeWithContentDescription("بزرگترها").performClick()
         await("رمز والد را وارد کنید")
         listOf("۰", "۰", "۰", "۰").forEach { compose.onNodeWithText(it).performClick() }
@@ -185,8 +194,33 @@ class AppFlowTest {
         compose.onNodeWithText("تأییدها").assertIsDisplayed()
     }
 
+    @Test fun kidBoard_rewards_redeem_asksGrownup() {
+        provisionKid()
+        awaitDesc("مسواک زدن")
+        compose.onNodeWithText("جایزه‌ها", substring = true).performClick()
+        await("بستنی")
+        compose.onNodeWithText("می‌خواهمش").performClick()
+        await("این را می‌خواهی؟")
+        compose.onNodeWithText("بله").performClick()
+        await("به بزرگترت گفتیم")
+    }
+
+    @Test fun parentHome_redemptionInbox_grant() {
+        provisionParent()
+        awaitDesc("بزرگترها")
+        compose.onNodeWithContentDescription("بزرگترها").performClick()
+        await("رمز والد را وارد کنید")
+        listOf("۲", "۴", "۶", "۸").forEach { compose.onNodeWithText(it).performClick() }
+        await("درخواست جایزه")
+        compose.onNodeWithText("بله، بده").performClick()
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("درخواست جایزه", substring = true).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
     @Test fun parentHome_approvalsInbox_approve() {
         provisionParent()
+        awaitDesc("بزرگترها")
         compose.onNodeWithContentDescription("بزرگترها").performClick()
         await("رمز والد را وارد کنید")
         listOf("۲", "۴", "۶", "۸").forEach { compose.onNodeWithText(it).performClick() }

@@ -85,6 +85,29 @@ class AuthRepository(
 
     suspend fun useChildToken(token: String) = tokens.setChildToken(token.trim())
 
+    /**
+     * Family device: mint a child token for [childId] and keep it on this
+     * device so the kid board can switch to that child. Requires the parent
+     * gate to be open.
+     */
+    suspend fun activateChildOnDevice(childId: String, name: String): ApiResult<Unit> =
+        when (val r = issueChildToken(childId)) {
+            is ApiResult.Ok -> { tokens.putChildToken(childId, name, r.value); ApiResult.Ok(Unit) }
+            is ApiResult.Failure -> r
+            is ApiResult.Offline -> r
+        }
+
+    suspend fun deactivateChildOnDevice(childId: String) = tokens.removeChildToken(childId)
+
+    suspend fun switchActiveChild(childId: String) = tokens.setActiveChild(childId)
+
+    fun childrenOnDevice(): List<hq.playfoundry.questgrow.data.model.DeviceChild> =
+        tokens.deviceChildrenBlocking().map {
+            hq.playfoundry.questgrow.data.model.DeviceChild(it.first, it.second)
+        }
+
+    fun activeChildId(): String? = tokens.activeChildIdBlocking()
+
     /** Parent (unlocked) mints a short 6-digit code for a child's own device. */
     suspend fun createPairingCode(childId: String): ApiResult<String> =
         apiCall { api.pairingCode(hq.playfoundry.questgrow.data.net.ChildTokenBody(childId)) }.let { r ->

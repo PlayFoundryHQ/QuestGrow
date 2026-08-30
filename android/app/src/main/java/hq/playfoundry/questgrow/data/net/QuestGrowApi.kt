@@ -82,6 +82,7 @@ interface QuestGrowApi {
     @POST("v1/clock/materialise") suspend fun materialise(@Body body: DayBody): Response<Map<String, Int>>
 
     // ---- rewards redemptions (parent) ----
+    @GET("v1/redemptions") suspend fun redemptions(): Response<List<PendingRedemptionOut>>
     @POST("v1/redemptions/{id}/grant") suspend fun grantRedemption(@Path("id") id: String): Response<RedemptionOut>
     @POST("v1/redemptions/{id}/decline") suspend fun declineRedemption(@Path("id") id: String): Response<RedemptionOut>
 
@@ -90,6 +91,7 @@ interface QuestGrowApi {
     @POST("v1/me/quests/{qid}/complete") suspend fun complete(
         @Path("qid") questId: String, @Body body: NotYetBody,
     ): Response<CompletionOut>
+    @GET("v1/me/rewards") suspend fun meRewards(): Response<MeRewardsOut>
     @POST("v1/me/rewards/{rid}/redeem") suspend fun redeem(@Path("rid") rewardId: String): Response<RedemptionOut>
     @GET("v1/me/celebrations") suspend fun celebrations(@Query("since") since: String? = null): Response<List<CelebrationDto>>
     @GET("v1/me/progress") suspend fun progress(@Query("week_start") weekStart: String): Response<ProgressDto>

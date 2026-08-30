@@ -65,6 +65,38 @@
     <string name="kid_week_days">این هفته %1$s اومدی</string>
     <string name="kid_stars">ستاره‌ها</string>
     <string name="kid_to_spend">برای خرج کردن: %1$s</string>
+
+    <!-- kid: switch child + rewards -->
+    <string name="kid_switch">کدام کودک؟</string>
+    <string name="kid_rewards">🎁 جایزه‌ها</string>
+    <string name="kid_rewards_title">جایزه‌ها</string>
+    <string name="kid_balance">تو %1$s ستاره داری</string>
+    <string name="kid_reward_cost">%1$s ستاره</string>
+    <string name="kid_reward_locked">هنوز ستارهٔ کافی نداری</string>
+    <string name="kid_reward_pending">⏳ به بزرگترت گفتی</string>
+    <string name="kid_reward_get">می‌خواهمش</string>
+    <string name="kid_reward_ask_title">این را می‌خواهی؟</string>
+    <string name="kid_reward_ask_body">%1$s ستاره خرج می‌شود.</string>
+    <string name="kid_reward_ask_grownup">به بزرگترت می‌گوییم تا بله بگوید.</string>
+    <string name="kid_reward_asked">به بزرگترت گفتیم 🎈</string>
+    <string name="kid_rewards_empty">هنوز جایزه‌ای نیست. از بزرگترت بخواه یکی بسازد.</string>
+    <string name="yes">بله</string>
+    <string name="no">نه</string>
+
+    <!-- parent: redemption inbox -->
+    <string name="parent_redemptions">درخواست جایزه</string>
+    <string name="parent_redemption_line">%1$s می‌خواهد «%2$s» را بگیرد — %3$s ستاره</string>
+    <string name="parent_redeem_grant">بله، بده</string>
+    <string name="parent_redeem_decline">الان نه</string>
+    <string name="parent_redeem_declined">رد شد — بدون جریمه.</string>
+    <string name="parent_redeem_granted">جایزه داده شد 🎉</string>
+
+    <!-- parent: activate a child on this device -->
+    <string name="children_on_this_device">روی این دستگاه</string>
+    <string name="children_activate">فعال کردن روی این دستگاه</string>
+    <string name="children_activated">فعال است ✓ — حذف</string>
+    <string name="children_activate_help">تختهٔ این کودک روی همین گوشی نشان داده می‌شود و می‌توانی بین کودکان جابه‌جا شوی.</string>
+    <string name="children_activated_msg">%1$s روی این دستگاه فعال شد.</string>
     <string name="kid_this_week">این هفته</string>
     <string name="err_offline_child">آفلاینی. کد بزرگترت کمک می‌کند وقتی دوباره وصل شدی کارهایت را انجام بدهی.</string>
 

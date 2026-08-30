@@ -13,6 +13,7 @@ import hq.playfoundry.questgrow.data.model.Dashboard
 import hq.playfoundry.questgrow.data.model.OwnershipStage
 import hq.playfoundry.questgrow.data.model.ParentQuest
 import hq.playfoundry.questgrow.data.model.ParentReward
+import hq.playfoundry.questgrow.data.model.PendingRedemption
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -34,6 +35,9 @@ data class ParentState(
     val rewards: Loadable<List<ParentReward>> = Loadable.Idle,
     val approvals: Loadable<List<Approval>> = Loadable.Idle,
     val suggestions: Loadable<List<AdvancementSuggestion>> = Loadable.Idle,
+    val redemptions: Loadable<List<PendingRedemption>> = Loadable.Idle,
+    /** child ids that have a token on THIS device (their board can be shown here). */
+    val deviceChildIds: Set<String> = emptySet(),
     val lastChildCode: String? = null,
 ) {
     val children: List<ChildProfile> get() = family.valueOrNull?.map { it.child } ?: emptyList()
@@ -43,7 +47,10 @@ data class ParentState(
 class ParentViewModel(private val container: AppContainer) : ViewModel() {
     // the parent gate (PIN pad) has already unlocked before this VM is shown
     private val _state = MutableStateFlow(
-        ParentState(signedIn = container.tokenStore.parentTokenBlocking() != null),
+        ParentState(
+            signedIn = container.tokenStore.parentTokenBlocking() != null,
+            deviceChildIds = container.authRepo.childrenOnDevice().map { it.childId }.toSet(),
+        ),
     )
     val state: StateFlow<ParentState> = _state
     private val repo get() = container.parentRepo
@@ -147,6 +154,33 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
     }
     fun createReward(id: String, name: String, icon: String, cost: Int, mode: String) = viewModelScope.launch {
         action(repo.createReward(id, name, icon, cost, mode)) { msg("جایزه ساخته شد."); loadRewards() }
+    }
+
+    // ---- reward redemptions (the "child asked to spend" inbox) ----
+    fun loadRedemptions() {
+        set { it.copy(redemptions = Loadable.Loading) }
+        viewModelScope.launch { val r = repo.pendingRedemptions(); set { it.copy(redemptions = r.toLoadable { x -> x }) } }
+    }
+    fun grantRedemption(id: String) = viewModelScope.launch {
+        action(repo.grantRedemption(id)) {
+            msg("جایزه داده شد 🎉"); loadRedemptions()
+            _state.value.children.forEach { loadDashboard(it.childId) }
+        }
+    }
+    fun declineRedemption(id: String) = viewModelScope.launch {
+        action(repo.declineRedemption(id)) { msg("رد شد — بدون جریمه."); loadRedemptions() }
+    }
+
+    // ---- activate a child on this device ----
+    fun activateChildHere(childId: String, name: String) = viewModelScope.launch {
+        action(container.authRepo.activateChildOnDevice(childId, name)) {
+            set { it.copy(deviceChildIds = container.authRepo.childrenOnDevice().map { c -> c.childId }.toSet()) }
+            msg("$name روی این دستگاه فعال شد.")
+        }
+    }
+    fun deactivateChildHere(childId: String) = viewModelScope.launch {
+        container.authRepo.deactivateChildOnDevice(childId)
+        set { it.copy(deviceChildIds = container.authRepo.childrenOnDevice().map { c -> c.childId }.toSet()) }
     }
 
     // ---- approvals ----

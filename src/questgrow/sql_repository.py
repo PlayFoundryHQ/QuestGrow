@@ -387,6 +387,23 @@ class SqlRepository:
             resolved_at=_dt(r["resolved_at"]),
         )
 
+    def redemptions_of(self, child_ids: list[str]) -> list[RewardRedemption]:
+        if not child_ids:
+            return []
+        q = ",".join("?" * len(child_ids))
+        rows = self.db.fetchall(
+            f"SELECT * FROM redemption WHERE child_id IN ({q}) ORDER BY requested_at",
+            tuple(child_ids),
+        )
+        return [
+            RewardRedemption(
+                id=r["id"], reward_id=r["reward_id"], child_id=r["child_id"],
+                state=RedemptionState(r["state"]), requested_at=_dt(r["requested_at"]),
+                resolved_at=_dt(r["resolved_at"]),
+            )
+            for r in rows
+        ]
+
     # ---- audit --------------------------------------------------
     def append_audit(self, e: AuditLogEntry) -> None:
         self.db.execute(

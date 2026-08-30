@@ -529,6 +529,36 @@ it.
 
 ---
 
+### DECISION-021 — The family device holds multiple children; the kid spends points in-app
+
+- **Status:** Accepted
+- **Date:** 2026-08-30
+- **Decision:** The Persian client's family device keeps **one child token per
+  activated child** (parent turns each on in Settings → Children), and the kid
+  board shows an avatar row to switch between them. The kid also gets a
+  **جایزه‌ها (Rewards)** screen: their Spendable Balance, the reward catalogue,
+  and a "می‌خواهمش" flow that submits a redemption. Two additive, read-only
+  backend endpoints back this: `GET /v1/me/rewards` (child's own catalogue with
+  affordability + pending flags) and `GET /v1/redemptions` (the parent's
+  pending-redemption inbox). The parent Home shows those requests with
+  «بله، بده» / «الان نه» (existing `grant` / `decline`).
+- **Why:** onboarding issued exactly one child token and pinned it — a second
+  child added later had no presence on the device, and there was no way to
+  switch. Points incremented but the kid could never see or spend them
+  (`GET /v1/me/rewards` did not exist). Both were dead ends the owner hit in use.
+- **Consequences:** `TokenStore` stores `child_tokens` / `child_names` /
+  `child_order` maps + `active_child_id`, mirrored in memory so blocking reads
+  never race the DataStore write; the legacy single-token path is kept for a
+  paired kid-only device. No change to auth semantics, verification, or the
+  points ledger — redemption stays parent-authoritative for `parent_confirmed`
+  rewards, self-service for `self_service`. `tests/test_rewards_inbox.py`,
+  `TokenStoreTest`, `AppFlowTest` (+2).
+- **Related principles:** #1, #2, #23
+- **Affected documents:** [android/README.md](../../android/README.md)
+- **Related GitHub issues:** —
+
+---
+
 ## Reserved for future entries
 
 New durable decisions are appended with the next sequential id. Superseding a

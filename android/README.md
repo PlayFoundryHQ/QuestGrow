@@ -24,8 +24,17 @@ narration in Persian. The app forces `fa` regardless of device locale.
   client replays login+unlock behind it.
 - **Parent home** = each child's day in a line + the **approvals inbox** front
   and centre (a card per pending completion, «تأیید» / «هنوز نه», «تأیید
-  همه»). Setup (routines / rewards / ownership / children / settings) is a
-  second layer.
+  همه»), and the **reward-redemption inbox** («… می‌خواهد … را بگیرد»,
+  «بله، بده» / «الان نه»). Setup (routines / rewards / ownership / children /
+  settings) is a second layer.
+- **Several children on one device.** The parent turns each child on in
+  **Children → «فعال کردن روی این دستگاه»**; the kid board then shows an avatar
+  row to switch between them (`TokenStore` keeps a token per child).
+- **The kid spends points in-app.** A **جایزه‌ها** screen shows the child's
+  balance and the reward catalogue; «می‌خواهمش» submits a redemption —
+  self-service rewards celebrate immediately, `parent_confirmed` ones land in
+  the parent's inbox. Backend: `GET /v1/me/rewards`, `GET /v1/redemptions`
+  (both additive, read-only).
 - **First run** = 3 guided screens (account+PIN → add child → pick routine
   cards; auto-assigns + materialises).
 - **A kid's own device** pairs with a **6-digit code** the parent generates in
@@ -115,12 +124,17 @@ A kid on their own device: the parent generates a **6-digit code** in
   `today()` marks a still-queued quest `QUEUED_OFFLINE`.
 - **`ComplexityProfileTest`** — band → rendering mapping, unknown-value
   fallback, clamp.
-- **`AppFlowTest`** (instrumented, MockWebServer, 7) — drives the real
+- **`AppFlowTest`** (instrumented, MockWebServer, 9) — drives the real
   `MainActivity`/`AppRoot`: fresh install → "این دستگاه برای کیست؟";
   child-device 6-digit pairing → kid board; kid completion pending →
   "منتظر بزرگترت"; verified → celebration "+۱۰"; **INV-8** (no
   stage/level/مرحله/سطح on the child surface); parent gate wrong PIN →
-  "رمز اشتباه" then correct → home; approvals inbox → approve → empty.
+  "رمز اشتباه" then correct → home; approvals inbox → approve → empty;
+  kid rewards → «می‌خواهمش» → "به بزرگترت گفتیم"; parent redemption inbox →
+  grant → empties.
+- **`TokenStoreTest`** (instrumented, 3) — the multi-child token map:
+  add / switch / remove, the single-token paired-device path, and a fresh
+  `TokenStore` instance reading the persisted map back.
 
 ## Accessibility
 

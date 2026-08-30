@@ -78,6 +78,41 @@ data class ParentReward(
     val active: Boolean,
 )
 
+/** A pending "child asked to spend points" request — the parent redemption inbox. */
+data class PendingRedemption(
+    val id: String,
+    val childId: String,
+    val childName: String,
+    val rewardId: String,
+    val rewardName: String,
+    val rewardIcon: String,
+    val cost: Int,
+)
+
+/** One reward as the child sees it, plus whether they can afford it / already asked. */
+data class KidReward(
+    val rewardId: String,
+    val name: String,
+    val icon: String,
+    val cost: Int,
+    /** true when the reward needs a grown-up's yes (`parent_confirmed`). */
+    val needsGrownup: Boolean,
+    val affordable: Boolean,
+    val pending: Boolean,
+)
+
+data class KidRewards(val spendableBalance: Int, val rewards: List<KidReward>)
+
+/** Outcome of a child asking to spend points. */
+sealed interface RedeemOutcome {
+    data class Granted(val rewardName: String) : RedeemOutcome   // self-service — celebrate
+    data object AskedGrownup : RedeemOutcome                     // parent_confirmed — now pending
+    data class Rejected(val detail: String) : RedeemOutcome
+}
+
+/** One child that has been activated on THIS device (its board can be shown). */
+data class DeviceChild(val childId: String, val name: String)
+
 data class Approval(val questId: String, val onDate: String)
 
 data class AdvancementSuggestion(

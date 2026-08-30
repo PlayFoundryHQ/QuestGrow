@@ -78,6 +78,22 @@ class ParentRepository(private val api: QuestGrowApi) {
     suspend fun createReward(rewardId: String, name: String, icon: String, cost: Int, mode: String): ApiResult<ParentReward> =
         apiCall { api.createReward(RewardBody(rewardId, name, icon, cost, mode)) }.map(::rw)
 
+    // ---- reward redemptions (the "child asked to spend" inbox) ----
+    suspend fun pendingRedemptions(): ApiResult<List<hq.playfoundry.questgrow.data.model.PendingRedemption>> =
+        apiCall { api.redemptions() }.map { list ->
+            list.map {
+                hq.playfoundry.questgrow.data.model.PendingRedemption(
+                    it.id, it.childId, it.childName, it.rewardId, it.rewardName, it.rewardIcon, it.cost,
+                )
+            }
+        }
+
+    suspend fun grantRedemption(id: String): ApiResult<Unit> =
+        apiCall { api.grantRedemption(id) }.map { }
+
+    suspend fun declineRedemption(id: String): ApiResult<Unit> =
+        apiCall { api.declineRedemption(id) }.map { }
+
     // ---- ownership ----
     suspend fun setOwnership(childId: String, questId: String, target: OwnershipStage): ApiResult<TransitionPlan> =
         apiCall { api.setOwnership(childId, questId, OwnershipBody(target.wire)) }

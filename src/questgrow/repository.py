@@ -89,6 +89,7 @@ class Repository(Protocol):
     def add_redemption(self, red: RewardRedemption) -> None: ...
     def get_redemption(self, redemption_id: str) -> RewardRedemption | None: ...
     def save_redemption(self, red: RewardRedemption) -> None: ...
+    def redemptions_of(self, child_ids: list[str]) -> list[RewardRedemption]: ...
 
     # audit
     def append_audit(self, e: AuditLogEntry) -> None: ...
@@ -270,6 +271,11 @@ class InMemoryRepository:
 
     def save_redemption(self, red: RewardRedemption) -> None:
         self._redemptions[red.id] = red
+
+    def redemptions_of(self, child_ids: list[str]) -> list[RewardRedemption]:
+        s = set(child_ids)
+        return sorted((r for r in self._redemptions.values() if r.child_id in s),
+                      key=lambda r: r.requested_at)
 
     # audit ----------------------------------------------------
     def append_audit(self, e: AuditLogEntry) -> None:

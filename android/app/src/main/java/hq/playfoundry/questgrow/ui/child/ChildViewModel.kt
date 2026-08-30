@@ -7,6 +7,10 @@ import hq.playfoundry.questgrow.core.ApiResult
 import hq.playfoundry.questgrow.data.model.Celebration
 import hq.playfoundry.questgrow.data.model.ChildProgress
 import hq.playfoundry.questgrow.data.model.CompletionOutcome
+import hq.playfoundry.questgrow.data.model.DeviceChild
+import hq.playfoundry.questgrow.data.model.KidReward
+import hq.playfoundry.questgrow.data.model.KidRewards
+import hq.playfoundry.questgrow.data.model.RedeemOutcome
 import hq.playfoundry.questgrow.data.model.TodayView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +26,12 @@ sealed interface TodayUi {
     data object NeedsCode : TodayUi
 }
 
+sealed interface RewardsUi {
+    data object Loading : RewardsUi
+    data class Ready(val rewards: KidRewards) : RewardsUi
+    data class Error(val message: String) : RewardsUi
+}
+
 class ChildViewModel(private val container: AppContainer) : ViewModel() {
 
     private val _today = MutableStateFlow<TodayUi>(TodayUi.Loading)
@@ -33,7 +43,31 @@ class ChildViewModel(private val container: AppContainer) : ViewModel() {
     private val _progress = MutableStateFlow<ChildProgress?>(null)
     val progress: StateFlow<ChildProgress?> = _progress
 
+    private val _rewards = MutableStateFlow<RewardsUi>(RewardsUi.Loading)
+    val rewards: StateFlow<RewardsUi> = _rewards
+
+    private val _deviceChildren = MutableStateFlow<List<DeviceChild>>(emptyList())
+    val deviceChildren: StateFlow<List<DeviceChild>> = _deviceChildren
+    private val _activeChildId = MutableStateFlow<String?>(null)
+    val activeChildId: StateFlow<String?> = _activeChildId
+
     val online: StateFlow<Boolean> get() = container.online
+
+    private fun refreshDeviceChildren() {
+        _deviceChildren.value = container.authRepo.childrenOnDevice()
+        _activeChildId.value = container.authRepo.activeChildId()
+    }
+
+    fun switchChild(childId: String) {
+        if (childId == _activeChildId.value) return
+        viewModelScope.launch {
+            container.authRepo.switchActiveChild(childId)
+            refreshDeviceChildren()
+            _today.value = TodayUi.Loading
+            refresh()
+            loadProgress()
+        }
+    }
 
     private fun today(): String = LocalDate.now().toString()
     private fun monday(): String =
@@ -46,6 +80,7 @@ class ChildViewModel(private val container: AppContainer) : ViewModel() {
             return
         }
         _today.value = TodayUi.Loading
+        refreshDeviceChildren()
         viewModelScope.launch {
             container.childRepo.flushQueue()
             when (val r = container.childRepo.today(today())) {
@@ -81,6 +116,32 @@ class ChildViewModel(private val container: AppContainer) : ViewModel() {
     fun loadProgress() {
         viewModelScope.launch {
             (container.childRepo.progress(monday()) as? ApiResult.Ok)?.let { _progress.value = it.value }
+        }
+    }
+
+    fun loadRewards() {
+        _rewards.value = RewardsUi.Loading
+        viewModelScope.launch {
+            _rewards.value = when (val r = container.childRepo.rewards()) {
+                is ApiResult.Ok -> RewardsUi.Ready(r.value)
+                is ApiResult.Offline -> RewardsUi.Error("الان به اینترنت وصل نیستی.")
+                is ApiResult.Failure -> RewardsUi.Error(r.detail.ifBlank { "یک مشکلی پیش آمد." })
+            }
+        }
+    }
+
+    fun redeem(reward: KidReward, onOutcome: (RedeemOutcome) -> Unit) {
+        viewModelScope.launch {
+            val outcome = when (val r = container.childRepo.redeem(reward.rewardId)) {
+                is ApiResult.Ok ->
+                    if (r.value == "granted") RedeemOutcome.Granted(reward.name)
+                    else RedeemOutcome.AskedGrownup
+                is ApiResult.Offline -> RedeemOutcome.Rejected("الان به اینترنت وصل نیستی.")
+                is ApiResult.Failure -> RedeemOutcome.Rejected(r.detail.ifBlank { "نشد" })
+            }
+            onOutcome(outcome)
+            loadRewards()
+            loadProgress()
         }
     }
 

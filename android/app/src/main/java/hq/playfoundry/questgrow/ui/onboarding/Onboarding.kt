@@ -151,8 +151,7 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
                         container.parentRepo.materialise(LocalDate.now().toString())
                         when (val t = container.authRepo.issueChildToken(childId)) {
                             is ApiResult.Ok -> {
-                                container.authRepo.useChildToken(t.value)
-                                container.tokenStore.setDefaultChild(childId, childName.trim())
+                                container.tokenStore.putChildToken(childId, childName.trim(), t.value)
                                 busy = false; onDone()
                             }
                             else -> show(t)

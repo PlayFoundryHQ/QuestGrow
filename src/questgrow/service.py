@@ -913,3 +913,30 @@ class QuestGrowService:
     def list_rewards(self, parent) -> list[Reward]:
         p = self._require_parent(parent)
         return self.repo.rewards_of(p.account_id)
+
+    def list_pending_redemptions(self, parent):
+        """(redemption, reward|None, child) for every PENDING request across the
+        parent's children — the parent-side redemption inbox."""
+        p = self._require_parent(parent)
+        kids = {c.child_id: c for c in self.repo.children_of(p.account_id)}
+        return [
+            (red, self.repo.get_reward(red.reward_id), kids[red.child_id])
+            for red in self.repo.redemptions_of(list(kids))
+            if red.state is RedemptionState.PENDING
+        ]
+
+    def list_rewards_for_child(self, child_scope, *, child_id: str):
+        """(spendable_balance, [(reward, is_pending)]) for the child's own
+        reward catalogue — active rewards only."""
+        self._require_child(child_scope, child_id)
+        child = self.repo.get_child(child_id)
+        assert child is not None
+        balance = spendable_balance(self.repo.ledger_for(child_id))
+        pending = {
+            r.reward_id for r in self.repo.redemptions_of([child_id])
+            if r.state is RedemptionState.PENDING
+        }
+        return balance, [
+            (r, r.reward_id in pending)
+            for r in self.repo.rewards_of(child.account_id) if r.active
+        ]

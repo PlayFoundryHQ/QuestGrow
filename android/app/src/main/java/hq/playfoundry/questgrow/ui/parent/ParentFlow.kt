@@ -54,7 +54,7 @@ fun ParentFlow(container: AppContainer, onExit: () -> Unit) {
     var section by remember { mutableStateOf(Section.Home) }
     var selectedChild by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) { vm.refreshFamily(); vm.loadQuests() }
+    LaunchedEffect(Unit) { vm.refreshFamily(); vm.loadQuests(); vm.loadRedemptions() }
     LaunchedEffect(s.children) {
         if (selectedChild == null) selectedChild = s.children.firstOrNull()?.childId
     }
@@ -141,6 +141,28 @@ private fun Home(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                }
+            }
+        }
+    }
+
+    // reward-redemption inbox ("child asked to spend points")
+    (s.redemptions.valueOrNull ?: emptyList()).takeIf { it.isNotEmpty() }?.let { reqs ->
+        Text(
+            stringResource(R.string.parent_redemptions),
+            style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp),
+        )
+        reqs.forEach { rq ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.parent_redemption_line, rq.childName, rq.rewardName, rq.cost.fa()),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BigButton(stringResource(R.string.parent_redeem_grant), Modifier.weight(1f)) { vm.grantRedemption(rq.id) }
+                        SecondaryButton(stringResource(R.string.parent_redeem_decline), Modifier.weight(1f), minHeight = 56.dp) { vm.declineRedemption(rq.id) }
+                    }
                 }
             }
         }
@@ -305,7 +327,20 @@ private fun Ownership(vm: ParentViewModel, s: ParentState, childId: String?) {
 private fun Children(vm: ParentViewModel, s: ParentState) {
     var name by remember { mutableStateOf("") }
     var band by remember { mutableStateOf("5-6") }
-    s.children.forEach { Text("• ${it.name}  (${it.ageBand})", Modifier.padding(vertical = 2.dp)) }
+
+    Text(stringResource(R.string.children_on_this_device), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.children_activate_help), style = MaterialTheme.typography.bodyMedium)
+    s.children.forEach { c ->
+        val here = c.childId in s.deviceChildIds
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${c.name}  (${c.ageBand})", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            if (here) {
+                SecondaryButton(stringResource(R.string.children_activated)) { vm.deactivateChildHere(c.childId) }
+            } else {
+                SecondaryButton(stringResource(R.string.children_activate)) { vm.activateChildHere(c.childId, c.name) }
+            }
+        }
+    }
     HorizontalDivider(Modifier.padding(vertical = 8.dp))
     Field(stringResource(R.string.onb_child_name), name, { name = it })
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

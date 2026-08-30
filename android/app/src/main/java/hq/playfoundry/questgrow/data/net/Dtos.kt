@@ -117,6 +117,26 @@ import kotlinx.serialization.Serializable
 @Serializable data class RedemptionOut(
     val id: String, @SerialName("reward_id") val rewardId: String, val state: String,
 )
+@Serializable data class PendingRedemptionOut(
+    val id: String,
+    @SerialName("child_id") val childId: String,
+    @SerialName("child_name") val childName: String,
+    @SerialName("reward_id") val rewardId: String,
+    @SerialName("reward_name") val rewardName: String,
+    @SerialName("reward_icon") val rewardIcon: String,
+    val cost: Int,
+    @SerialName("requested_at") val requestedAt: String,
+)
+@Serializable data class MeRewardOut(
+    @SerialName("reward_id") val rewardId: String,
+    val name: String, val icon: String, val cost: Int, val mode: String,
+    val affordable: Boolean, val pending: Boolean,
+)
+@Serializable data class MeRewardsOut(
+    @SerialName("child_id") val childId: String,
+    @SerialName("spendable_balance") val spendableBalance: Int,
+    val rewards: List<MeRewardOut>,
+)
 
 // ---- child-facing (INV-8: NO stage / level / readiness field) --------
 @Serializable data class ComplexityProfileDto(
