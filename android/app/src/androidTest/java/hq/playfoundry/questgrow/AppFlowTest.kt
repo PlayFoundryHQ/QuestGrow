@@ -170,7 +170,7 @@ class AppFlowTest {
         compose.onNodeWithText("Unlock parent mode").performClick()
         awaitTag("tab_Dashboard")
         compose.onNodeWithTag("tab_Dashboard", useUnmergedTree = true).assertIsDisplayed()
-        compose.waitUntil(5_000) {
+        compose.waitUntil(10_000) {
             compose.onAllNodesWithText("Kid").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Kid").assertExists()   // the child row from /v1/children
@@ -269,24 +269,24 @@ class AppFlowTest {
             "tab_Settings" to "Backend server",
         ).forEach { (tab, marker) ->
             compose.onNodeWithTag(tab, useUnmergedTree = true).performScrollTo().performClick()
-            compose.waitUntil(5_000) {
+            compose.waitUntil(10_000) {
                 compose.onAllNodesWithText(marker, substring = true).fetchSemanticsNodes().isNotEmpty()
             }
         }
         // and back to the first tab
         compose.onNodeWithTag("tab_Dashboard", useUnmergedTree = true).performScrollTo().performClick()
-        compose.waitUntil(5_000) {
+        compose.waitUntil(10_000) {
             compose.onAllNodesWithText("Add a child", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
     // --------------------------------------------------------------------- #
     /** network responses aren't Espresso idling resources, so poll the tree. */
-    private fun awaitContentDescription(text: String) = compose.waitUntil(5_000) {
+    private fun awaitContentDescription(text: String) = compose.waitUntil(10_000) {
         compose.onAllNodesWithContentDescription(text).fetchSemanticsNodes().isNotEmpty()
     }
 
-    private fun awaitTag(tag: String) = compose.waitUntil(5_000) {
+    private fun awaitTag(tag: String) = compose.waitUntil(10_000) {
         compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     }
 

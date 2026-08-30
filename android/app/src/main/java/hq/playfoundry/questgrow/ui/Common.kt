@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /** ≥64dp touch target — UX_PRINCIPLES "touch targets ≥ 64×64pt" (child surface). */
@@ -40,11 +41,21 @@ fun BigButton(
     ) { Text(text, style = MaterialTheme.typography.titleLarge) }
 }
 
+/**
+ * Secondary action. Defaults to the 48dp Material minimum (fine for the parent
+ * surface); child-surface callers pass [minHeight] = 64.dp to meet the
+ * ≥64×64pt child touch-target rule (UX_PRINCIPLES / DESIGN_PRINCIPLES).
+ */
 @Composable
-fun SecondaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun SecondaryButton(
+    text: String,
+    modifier: Modifier = Modifier,
+    minHeight: Dp = 48.dp,
+    onClick: () -> Unit,
+) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 48.dp),
+        modifier = modifier.heightIn(min = minHeight),
     ) { Text(text) }
 }
 
@@ -69,6 +80,6 @@ fun ErrorRetry(
     ) {
         Text(message, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
         BigButton("Try again", modifier = Modifier.padding(top = 16.dp)) { onRetry() }
-        if (onGrownUp != null) SecondaryButton("Grown-up", modifier = Modifier.padding(top = 8.dp)) { onGrownUp() }
+        if (onGrownUp != null) SecondaryButton("Grown-up", modifier = Modifier.padding(top = 8.dp), minHeight = 64.dp) { onGrownUp() }
     }
 }

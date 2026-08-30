@@ -157,8 +157,8 @@ private fun TodayScreen(
                     )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SecondaryButton("Progress", Modifier.weight(1f), onProgress)
-                    SecondaryButton("Grown-up", Modifier.weight(1f), onExit)
+                    SecondaryButton("Progress", Modifier.weight(1f), minHeight = 64.dp, onClick = onProgress)
+                    SecondaryButton("Grown-up", Modifier.weight(1f), minHeight = 64.dp, onClick = onExit)
                 }
             }
         }
@@ -210,7 +210,7 @@ private fun QuestCard(q: TodayQuest, profile: ComplexityProfile, narrator: Narra
 private fun DoItScreen(title: String, icon: String, narrator: Narrator, onBack: () -> Unit, onDid: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.SpaceBetween) {
-        SecondaryButton("‹ Today", onClick = onBack)
+        SecondaryButton("‹ Today", minHeight = 64.dp, onClick = onBack)
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(icon.ifBlank { "⭐" }, fontSize = 76.sp)
             Text(title, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
@@ -264,7 +264,7 @@ private fun CelebrationScreen(vm: ChildViewModel, onDone: () -> Unit) {
 private fun ChildProgressScreen(vm: ChildViewModel, onBack: () -> Unit) {
     val p by vm.progress.collectAsStateSafe()
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SecondaryButton("‹ Today", onClick = onBack)
+        SecondaryButton("‹ Today", minHeight = 64.dp, onClick = onBack)
         Text("This week", style = MaterialTheme.typography.titleLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             repeat(7) { i ->
@@ -294,6 +294,6 @@ private fun CodeEntry(onCode: (String) -> Unit, onGrownUp: () -> Unit) {
         Text("Ask your grown-up for your code.", style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(value = code, onValueChange = { code = it }, label = { Text("Code") }, modifier = Modifier.fillMaxWidth())
         BigButton("Start", enabled = code.isNotBlank()) { onCode(code.trim()) }
-        SecondaryButton("Grown-up") { onGrownUp() }
+        SecondaryButton("Grown-up", minHeight = 64.dp) { onGrownUp() }
     }
 }
