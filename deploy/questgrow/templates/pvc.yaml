@@ -1,0 +1,17 @@
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "questgrow.name" . }}-data
+  labels: {{- include "questgrow.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep     # don't delete the DB if the release is removed
+spec:
+  accessModes: [{{ .Values.persistence.accessMode }}]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+{{- end }}

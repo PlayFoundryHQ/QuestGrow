@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "questgrow.name" . }}
+  labels: {{- include "questgrow.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate          # SQLite: never two writers at once
+  selector:
+    matchLabels: {{- include "questgrow.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "questgrow.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: questgrow
+          image: {{ include "questgrow.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { name: http, containerPort: 8000 }
+          env:
+            - { name: QUESTGROW_DATABASE_URL,       value: {{ .Values.config.databaseUrl | quote }} }
+            - { name: QUESTGROW_SESSION_TTL_S,      value: {{ .Values.config.sessionTtlS | quote }} }
+            - { name: QUESTGROW_PARENT_TTL_S,       value: {{ .Values.config.parentTtlS | quote }} }
+            - { name: QUESTGROW_AUTH_MAX_ATTEMPTS,  value: {{ .Values.config.authMaxAttempts | quote }} }
+            - { name: QUESTGROW_AUTH_WINDOW_S,      value: {{ .Values.config.authWindowS | quote }} }
+            - { name: QUESTGROW_AUTH_LOCKOUT_S,     value: {{ .Values.config.authLockoutS | quote }} }
+            - { name: QUESTGROW_PENDING_GRACE_DAYS, value: {{ .Values.config.pendingGraceDays | quote }} }
+            - { name: QUESTGROW_ADVANCEMENT_THRESHOLD, value: {{ .Values.config.advancementThreshold | quote }} }
+            - { name: QUESTGROW_CORS_ORIGINS,       value: {{ .Values.config.corsOrigins | quote }} }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp,  mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+        {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "questgrow.name" . }}-data
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,55 @@
+# QuestGrow chart defaults. Real deploy overrides live in values-nuc-lab.yaml.
+
+image:
+  repository: ghcr.io/playfoundryhq/questgrow
+  tag: ""            # defaults to .Chart.appVersion; set per release
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# SQLite single-writer → exactly one replica, Recreate rollout. Do not raise
+# replicaCount without moving to Postgres first.
+replicaCount: 1
+
+# Persistent volume for the SQLite database file (mounted at /data).
+persistence:
+  enabled: true
+  storageClass: ""    # "" = cluster default
+  size: 1Gi
+  accessMode: ReadWriteOnce
+
+# Backend configuration → QUESTGROW_* env vars (see docs/product-delivery/DEPLOYMENT.md).
+config:
+  databaseUrl: sqlite:///data/questgrow.db
+  sessionTtlS: 600
+  parentTtlS: 900         # PIN re-challenge cadence; raise for a personal deployment
+  authMaxAttempts: 5
+  authWindowS: 900
+  authLockoutS: 900
+  pendingGraceDays: 1
+  advancementThreshold: 8
+  corsOrigins: ""        # comma-separated; "" keeps CORS off
+
+ingress:
+  enabled: false
+  className: traefik
+  host: questgrow.example.com
+  # TLS: set tls.enabled when the cluster terminates TLS (cert-manager).
+  # Leave off when an edge proxy (e.g. ArvanCloud) terminates TLS upstream.
+  tls:
+    enabled: false
+    secretName: questgrow-tls
+    clusterIssuer: letsencrypt-http01
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests: { cpu: 25m, memory: 96Mi }
+  limits: { cpu: 500m, memory: 256Mi }
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

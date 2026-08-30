@@ -1,0 +1,31 @@
+# Real deploy — nuc-lab cluster, questgrow.opscale.ir.
+# The ArgoCD Application points valueFiles at this file.
+
+image:
+  repository: ghcr.io/playfoundryhq/questgrow
+  tag: "0.3.0"          # bump per release (scripts/release.sh prints the value)
+
+persistence:
+  enabled: true
+  size: 1Gi             # SQLite for a single family — a few MB in practice
+
+config:
+  databaseUrl: sqlite:///data/questgrow.db
+  # personal deployment: don't nag for the PIN every 15 min
+  parentTtlS: 43200            # 12h
+  # the reference web clients are same-origin, so CORS can stay off
+  corsOrigins: ""
+
+ingress:
+  enabled: true
+  className: traefik
+  host: questgrow.opscale.ir
+  tls:
+    # ArvanCloud terminates TLS at its edge for *.opscale.ir (same as downtime).
+    # Flip to true + keep clusterIssuer if you want in-cluster cert-manager TLS instead.
+    enabled: false
+    clusterIssuer: letsencrypt-http01
+
+resources:
+  requests: { cpu: 25m, memory: 96Mi }
+  limits: { cpu: 500m, memory: 256Mi }
