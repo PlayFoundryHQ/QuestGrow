@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import hq.playfoundry.questgrow.AppContainer
 import hq.playfoundry.questgrow.core.ApiResult
+import hq.playfoundry.questgrow.core.Loadable
+import hq.playfoundry.questgrow.core.toLoadable
 import hq.playfoundry.questgrow.data.model.AdvancementSuggestion
 import hq.playfoundry.questgrow.data.model.Approval
 import hq.playfoundry.questgrow.data.model.ChildProfile
@@ -18,18 +20,25 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 
+/** One row of the dashboard: the child + its (independently loaded) summary. */
+data class ChildDashboard(val child: ChildProfile, val summary: Dashboard?)
+
 data class ParentState(
     val signedIn: Boolean = false,
     val busy: Boolean = false,
+    /** transient one-shot action feedback ("Saved.", "Created.") — auto-cleared. */
     val message: String? = null,
-    val children: List<ChildProfile> = emptyList(),
-    val quests: List<ParentQuest> = emptyList(),
-    val rewards: List<ParentReward> = emptyList(),
-    val approvals: List<Approval> = emptyList(),
-    val suggestions: List<AdvancementSuggestion> = emptyList(),
-    val dashboards: Map<String, Dashboard> = emptyMap(),
+    // per-section load state (Phase J)
+    val family: Loadable<List<ChildDashboard>> = Loadable.Idle,
+    val quests: Loadable<List<ParentQuest>> = Loadable.Idle,
+    val rewards: Loadable<List<ParentReward>> = Loadable.Idle,
+    val approvals: Loadable<List<Approval>> = Loadable.Idle,
+    val suggestions: Loadable<List<AdvancementSuggestion>> = Loadable.Idle,
     val lastChildCode: String? = null,
-)
+) {
+    val children: List<ChildProfile> get() = family.valueOrNull?.map { it.child } ?: emptyList()
+    val approvalItems: List<Approval> get() = approvals.valueOrNull ?: emptyList()
+}
 
 class ParentViewModel(private val container: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(ParentState())
@@ -43,115 +52,140 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
     private fun set(f: (ParentState) -> ParentState) { _state.value = f(_state.value) }
     private fun msg(m: String?) = set { it.copy(message = m) }
 
-    private fun <T> handle(r: ApiResult<T>, ok: (T) -> Unit) = when (r) {
+    /** for one-shot *actions* (create / edit / approve …) — keeps the transient message model. */
+    private fun <T> action(r: ApiResult<T>, ok: (T) -> Unit) = when (r) {
         is ApiResult.Ok -> ok(r.value)
-        is ApiResult.Offline -> msg("You're offline.")
-        is ApiResult.Failure -> {
+        is ApiResult.Offline -> msg("You're offline — not saved.")
+        is ApiResult.Failure ->
             if (r.isAuthExpired) set { it.copy(signedIn = false, message = "Session expired — sign in again.") }
             else msg(r.detail.ifBlank { r.code })
-        }
     }
 
+    // ---- auth ----
     fun signIn(email: String, password: String, pin: String) {
         set { it.copy(busy = true, message = null) }
         viewModelScope.launch {
             container.useParentScope()
             when (val r = container.authRepo.signInAsParent(email, password, pin)) {
                 is ApiResult.Ok -> { set { it.copy(signedIn = true, busy = false) }; refreshFamily() }
-                is ApiResult.Failure -> set { it.copy(busy = false, message = if (r.status == 403) "Wrong email, password or PIN — or too many attempts." else r.detail) }
+                is ApiResult.Failure -> set {
+                    it.copy(busy = false, message =
+                        if (r.status == 403) "Wrong email, password or PIN — or too many attempts."
+                        else r.detail.ifBlank { r.code })
+                }
                 is ApiResult.Offline -> set { it.copy(busy = false, message = "You're offline.") }
             }
         }
     }
 
-    fun signUp(email: String, password: String, pin: String) {
-        viewModelScope.launch {
-            handle(container.authRepo.signUp(email, password, pin)) { msg("Account created — now sign in.") }
-        }
+    fun signUp(email: String, password: String, pin: String) = viewModelScope.launch {
+        action(container.authRepo.signUp(email, password, pin)) { msg("Account created — now sign in.") }
     }
 
-    fun signOut() {
-        viewModelScope.launch { container.authRepo.signOutParent(); set { ParentState() } }
-    }
+    fun signOut() = viewModelScope.launch { container.authRepo.signOutParent(); set { ParentState() } }
+    fun forgetDevice() = viewModelScope.launch { container.authRepo.forgetEverything(); set { ParentState() } }
 
-    fun forgetDevice() {
-        viewModelScope.launch { container.authRepo.forgetEverything(); set { ParentState() } }
-    }
-
+    // ---- family / dashboard ----
     fun refreshFamily() {
+        set { it.copy(family = Loadable.Loading) }
         viewModelScope.launch {
-            handle(repo.children()) { kids ->
-                set { it.copy(children = kids) }
-                kids.forEach { k -> loadDashboard(k.childId) }
+            val r = repo.children()
+            set { it.copy(family = r.toLoadable { kids -> kids.map { ChildDashboard(it, null) } }) }
+            (r as? ApiResult.Ok)?.value?.forEach { loadDashboard(it.childId) }
+        }
+    }
+
+    fun loadDashboard(childId: String) = viewModelScope.launch {
+        (repo.dashboard(childId, today(), monday()) as? ApiResult.Ok)?.let { d ->
+            set { st ->
+                val fam = st.family.valueOrNull ?: return@set st
+                st.copy(family = Loadable.Loaded(fam.map {
+                    if (it.child.childId == childId) it.copy(summary = d.value) else it
+                }))
             }
         }
     }
 
-    fun loadDashboard(childId: String) {
+    fun addChild(childId: String, name: String, ageBand: String) = viewModelScope.launch {
+        action(repo.addChild(childId, name, ageBand)) { msg("Child added."); refreshFamily() }
+    }
+
+    fun editChild(id: String, name: String?, ageBand: String?, birthdate: String?, overrides: Map<String, String>?) =
         viewModelScope.launch {
-            (repo.dashboard(childId, today(), monday()) as? ApiResult.Ok)?.let { d ->
-                set { it.copy(dashboards = it.dashboards + (childId to d.value)) }
-            }
+            action(repo.editChild(id, name, ageBand, birthdate, overrides)) { msg("Saved."); refreshFamily() }
         }
+
+    fun issueChildCode(childId: String) = viewModelScope.launch {
+        action(container.authRepo.issueChildToken(childId)) { code -> set { it.copy(lastChildCode = code) } }
     }
 
-    fun addChild(childId: String, name: String, ageBand: String) {
-        viewModelScope.launch { handle(repo.addChild(childId, name, ageBand)) { refreshFamily() } }
+    // ---- quests ----
+    fun loadQuests() {
+        set { it.copy(quests = Loadable.Loading) }
+        viewModelScope.launch { val r = repo.quests(); set { it.copy(quests = r.toLoadable { q -> q }) } }
+    }
+    fun createQuest(id: String, title: String, icon: String, points: Int, recurrence: String) = viewModelScope.launch {
+        action(repo.createQuest(id, title, icon, points, recurrence)) { msg("Quest created."); loadQuests() }
+    }
+    fun editQuest(id: String, title: String?, points: Int?, archived: Boolean?) = viewModelScope.launch {
+        action(repo.editQuest(id, title, points, archived)) { msg("Saved."); loadQuests() }
+    }
+    fun seedStarters() = viewModelScope.launch {
+        action(repo.seedStarters()) { msg("Starter templates added."); loadQuests() }
+    }
+    fun assign(childId: String, questId: String) = viewModelScope.launch {
+        action(repo.assign(childId, questId)) { msg("Assigned.") }
     }
 
-    fun editChild(id: String, name: String?, ageBand: String?, birthdate: String?, overrides: Map<String, String>?) {
-        viewModelScope.launch {
-            handle(repo.editChild(id, name, ageBand, birthdate, overrides)) { msg("Saved."); refreshFamily() }
-        }
+    // ---- rewards ----
+    fun loadRewards() {
+        set { it.copy(rewards = Loadable.Loading) }
+        viewModelScope.launch { val r = repo.rewards(); set { it.copy(rewards = r.toLoadable { rw -> rw }) } }
+    }
+    fun createReward(id: String, name: String, icon: String, cost: Int, mode: String) = viewModelScope.launch {
+        action(repo.createReward(id, name, icon, cost, mode)) { msg("Reward created."); loadRewards() }
     }
 
-    fun issueChildCode(childId: String) {
-        viewModelScope.launch {
-            handle(container.authRepo.issueChildToken(childId)) { code -> set { it.copy(lastChildCode = code) } }
-        }
+    // ---- approvals ----
+    fun loadApprovals(childId: String) {
+        set { it.copy(approvals = Loadable.Loading) }
+        viewModelScope.launch { val r = repo.approvals(childId); set { it.copy(approvals = r.toLoadable { a -> a }) } }
     }
-
-    fun loadQuests() = viewModelScope.launch { handle(repo.quests()) { qs -> set { it.copy(quests = qs) } } }
-    fun createQuest(id: String, title: String, icon: String, points: Int, recurrence: String) =
-        viewModelScope.launch { handle(repo.createQuest(id, title, icon, points, recurrence)) { msg("Created."); loadQuests() } }
-    fun editQuest(id: String, title: String?, points: Int?, archived: Boolean?) =
-        viewModelScope.launch { handle(repo.editQuest(id, title, points, archived)) { msg("Saved."); loadQuests() } }
-    fun seedStarters() = viewModelScope.launch { handle(repo.seedStarters()) { msg("Templates added."); loadQuests() } }
-    fun assign(childId: String, questId: String) =
-        viewModelScope.launch { handle(repo.assign(childId, questId)) { msg("Assigned.") } }
-
-    fun loadRewards() = viewModelScope.launch { handle(repo.rewards()) { rs -> set { it.copy(rewards = rs) } } }
-    fun createReward(id: String, name: String, icon: String, cost: Int, mode: String) =
-        viewModelScope.launch { handle(repo.createReward(id, name, icon, cost, mode)) { msg("Created."); loadRewards() } }
-
-    fun loadApprovals(childId: String) =
-        viewModelScope.launch { handle(repo.approvals(childId)) { a -> set { it.copy(approvals = a) } } }
-    fun approve(childId: String, a: Approval) =
-        viewModelScope.launch { handle(repo.approve(childId, a.questId, a.onDate)) { loadApprovals(childId); loadDashboard(childId) } }
-    fun notYet(childId: String, a: Approval) =
-        viewModelScope.launch { handle(repo.notYet(childId, a.questId, a.onDate)) { loadApprovals(childId) } }
+    fun approve(childId: String, a: Approval) = viewModelScope.launch {
+        action(repo.approve(childId, a.questId, a.onDate)) { loadApprovals(childId); loadDashboard(childId) }
+    }
+    fun notYet(childId: String, a: Approval) = viewModelScope.launch {
+        action(repo.notYet(childId, a.questId, a.onDate)) { msg("Sent back — no penalty."); loadApprovals(childId) }
+    }
     fun approveAll(childId: String) = viewModelScope.launch {
-        val items = _state.value.approvals
-        handle(repo.approveAll(childId, items)) { msg("Approved $it."); loadApprovals(childId); loadDashboard(childId) }
+        action(repo.approveAll(childId, _state.value.approvalItems)) {
+            msg("Approved $it."); loadApprovals(childId); loadDashboard(childId)
+        }
     }
 
-    fun loadSuggestions(childId: String) =
-        viewModelScope.launch { handle(repo.suggestions(childId)) { s -> set { it.copy(suggestions = s) } } }
-    fun acceptSuggestion(childId: String, questId: String) =
-        viewModelScope.launch { handle(repo.acceptSuggestion(childId, questId)) { loadSuggestions(childId) } }
-    fun dismissSuggestion(childId: String, questId: String) =
-        viewModelScope.launch { handle(repo.dismissSuggestion(childId, questId)) { loadSuggestions(childId) } }
+    // ---- ownership ----
+    fun loadSuggestions(childId: String) {
+        set { it.copy(suggestions = Loadable.Loading) }
+        viewModelScope.launch { val r = repo.suggestions(childId); set { it.copy(suggestions = r.toLoadable { s -> s }) } }
+    }
+    fun acceptSuggestion(childId: String, questId: String) = viewModelScope.launch {
+        action(repo.acceptSuggestion(childId, questId)) { loadSuggestions(childId) }
+    }
+    fun dismissSuggestion(childId: String, questId: String) = viewModelScope.launch {
+        action(repo.dismissSuggestion(childId, questId)) { loadSuggestions(childId) }
+    }
     fun setOwnership(childId: String, questId: String, stage: OwnershipStage) = viewModelScope.launch {
-        handle(repo.setOwnership(childId, questId, stage)) { plan ->
+        action(repo.setOwnership(childId, questId, stage)) { plan ->
             msg(if (plan.direction == "regress") "Moved to more support — a normal adjustment." else "Updated.")
         }
     }
 
-    fun materialiseToday(childId: String) =
-        viewModelScope.launch { handle(repo.materialise(today())) { loadDashboard(childId) } }
-
-    fun setNotifications(enabled: Boolean) =
-        viewModelScope.launch { handle(repo.setNotifications(enabled)) { msg(if (it) "Notifications on." else "Notifications off.") } }
+    fun materialiseToday(childId: String) = viewModelScope.launch {
+        action(repo.materialise(today())) { msg("Today's quests are ready."); loadDashboard(childId) }
+    }
+    fun setNotifications(enabled: Boolean) = viewModelScope.launch {
+        action(repo.setNotifications(enabled)) { msg(if (it) "Notifications on." else "Notifications off.") }
+    }
 
     fun clearMessage() = msg(null)
 }

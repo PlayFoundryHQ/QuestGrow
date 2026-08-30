@@ -2,6 +2,7 @@ package hq.playfoundry.questgrow
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -100,5 +101,21 @@ class QuestGrowApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         container.observeConnectivity(this)
+    }
+}
+
+/**
+ * Cleanly relaunch the app after a config change (e.g. the backend URL).
+ * Starts a fresh task at the launcher entry point and ends the current
+ * process, so ``Application.onCreate`` rebuilds ``AppContainer`` from the
+ * (already persisted) config. Nothing about auth / tokens / TTLs changes —
+ * the DataStore-backed session survives the restart.
+ */
+fun Context.restartApp() {
+    val intent = packageManager.getLaunchIntentForPackage(packageName)
+        ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK) }
+    if (intent != null) {
+        startActivity(intent)
+        Runtime.getRuntime().exit(0)
     }
 }
