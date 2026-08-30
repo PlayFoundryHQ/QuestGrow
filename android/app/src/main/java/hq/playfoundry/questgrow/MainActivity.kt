@@ -5,9 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,6 +39,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             QuestGrowTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                  // keep content clear of the status / navigation bars (edge-to-edge draws behind them)
+                  Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
                     var mode by remember {
                         mutableStateOf(
                             if (container.tokenStore.childTokenBlocking() != null) Mode.CHILD else Mode.CHOOSER,
@@ -54,6 +60,7 @@ class MainActivity : ComponentActivity() {
                             ParentFlow(container, onExit = { mode = Mode.CHOOSER })
                         }
                     }
+                  }
                 }
             }
         }

@@ -93,11 +93,16 @@ hides the visible label); state shown as text + glyph, never colour alone;
 auto-read; reduced-motion honoured (celebration animation stilled when the OS
 animation scale is 0); large readable type.
 
-**Verified on an emulator** (functional): the flows run against a live backend
-and the accessibility labels are present in the view tree.
-**NOT independently verified:** a real OS screen-reader (TalkBack) pass, and
-pixel/visual layout — the headless emulator's `screencap` returns black frames
-in this environment (a GPU limitation, not an app defect).
+**Visually verified** (Cycle 2, `google_apis` emulator under Xvfb): the child
+chooser / code-entry / Today / Do-it / celebration / progress screens and the
+parent sign-in / dashboard / approvals screens render correctly, edge-to-edge
+content is inset clear of the system bars, and state is shown as text + glyph.
+**Accessibility (TalkBack) verified at the semantics layer:** icon-only quest
+cards announce "`<quest>`, done" / "`<quest>`, waiting" / "`<quest>`" — the
+name is spoken even when the label is visually hidden, and no stage/level
+leaks into the spoken text (INV-8).
+**NOT verified:** audible TTS output; a real physical device; deep TalkBack
+gesture navigation.
 
 ## Offline behaviour
 

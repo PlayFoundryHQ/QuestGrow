@@ -112,13 +112,21 @@ private fun SignInScreen(vm: ParentViewModel, onExit: () -> Unit, container: App
 }
 
 @Composable private fun sectionCard(title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Card(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge)
             content()
         }
     }
 }
+
+private fun days(n: Int) = if (n == 1) "1 day" else "$n days"
 
 @Composable private fun field(label: String, value: String, onChange: (String) -> Unit, number: Boolean = false) =
     OutlinedTextField(
@@ -150,7 +158,7 @@ private fun DashboardTab(vm: ParentViewModel) {
         val d = s.dashboards[k.childId]
         sectionCard(k.name) {
             Text("Today: ${d?.verified ?: 0}/${d?.total ?: 0} done · ${d?.pending ?: 0} waiting")
-            Text("Showed up ${d?.weekActiveDays ?: 0} days this week.")
+            Text("Showed up ${days(d?.weekActiveDays ?: 0)} this week.")
             SecondaryButton("Materialise today") { vm.materialiseToday(k.childId) }
         }
     }
