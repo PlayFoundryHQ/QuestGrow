@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,8 +19,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import hq.playfoundry.questgrow.AppContainer
 import hq.playfoundry.questgrow.R
+import androidx.compose.ui.unit.sp
 import hq.playfoundry.questgrow.core.ApiResult
 import hq.playfoundry.questgrow.ui.DigitPad
+import hq.playfoundry.questgrow.ui.GhostButton
+import hq.playfoundry.questgrow.ui.Space
 
 /** The everyday grown-up gate: 4-digit PIN, no email/password (stored on device). */
 @Composable
@@ -41,19 +43,19 @@ fun ParentGate(container: AppContainer, onUnlocked: () -> Unit, onCancel: () -> 
     }
 
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        Modifier.fillMaxSize().padding(Space.xl),
+        verticalArrangement = Arrangement.spacedBy(Space.lg, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(stringResource(R.string.gate_title), style = MaterialTheme.typography.headlineSmall)
-        if (wrong) {
-            Text(
-                stringResource(R.string.gate_wrong),
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center,
-            )
-        }
+        Text("🔒", fontSize = 44.sp)
+        Text(stringResource(R.string.gate_title), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+        Text(
+            if (wrong) stringResource(R.string.gate_wrong) else " ",
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyMedium,
+        )
         DigitPad(value = pin, onValue = { if (!busy) pin = it }, length = 4)
-        TextButton(onClick = onCancel) { Text(stringResource(R.string.back)) }
+        GhostButton(stringResource(R.string.back)) { onCancel() }
     }
 }

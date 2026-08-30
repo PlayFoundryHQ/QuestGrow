@@ -16,3 +16,13 @@ fun faFraction(done: Int, total: Int): String = "${done.fa()} از ${total.fa()}
 
 /** "۳ روز" / "۱ روز" — Persian has no plural inflection here, but keep the helper. */
 fun faDays(n: Int): String = "${n.fa()} روز"
+
+/** Today's weekday name in Persian — e.g. "شنبه" — for a friendly greeting. */
+fun faWeekdayToday(): String {
+    // java.time DayOfWeek: MONDAY=1 … SUNDAY=7
+    val names = mapOf(
+        1 to "دوشنبه", 2 to "سه‌شنبه", 3 to "چهارشنبه", 4 to "پنجشنبه",
+        5 to "جمعه", 6 to "شنبه", 7 to "یکشنبه",
+    )
+    return names.getValue(java.time.LocalDate.now().dayOfWeek.value)
+}

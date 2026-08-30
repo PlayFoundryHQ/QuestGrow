@@ -1,21 +1,21 @@
 package hq.playfoundry.questgrow.ui.parent
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import hq.playfoundry.questgrow.AppContainer
 import hq.playfoundry.questgrow.R
@@ -36,9 +37,17 @@ import hq.playfoundry.questgrow.core.Loadable
 import hq.playfoundry.questgrow.data.model.Approval
 import hq.playfoundry.questgrow.data.model.OwnershipStage
 import hq.playfoundry.questgrow.restartApp
+import hq.playfoundry.questgrow.ui.AppScaffold
+import hq.playfoundry.questgrow.ui.Avatar
 import hq.playfoundry.questgrow.ui.BigButton
 import hq.playfoundry.questgrow.ui.Field
+import hq.playfoundry.questgrow.ui.GhostButton
+import hq.playfoundry.questgrow.ui.HintText
+import hq.playfoundry.questgrow.ui.SectionHeader
 import hq.playfoundry.questgrow.ui.SecondaryButton
+import hq.playfoundry.questgrow.ui.SelectPill
+import hq.playfoundry.questgrow.ui.SelectRow
+import hq.playfoundry.questgrow.ui.Space
 import hq.playfoundry.questgrow.ui.STARTERS
 import hq.playfoundry.questgrow.ui.collectAsStateSafe
 import hq.playfoundry.questgrow.ui.fa
@@ -59,39 +68,26 @@ fun ParentFlow(container: AppContainer, onExit: () -> Unit) {
         if (selectedChild == null) selectedChild = s.children.firstOrNull()?.childId
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (section != Section.Home) {
-                TextButton(onClick = { section = Section.Home }) { Text("‹ " + stringResource(R.string.parent_home)) }
+    AppScaffold(
+        title = title(section),
+        onBack = if (section == Section.Home) onExit else ({ section = Section.Home }),
+    ) {
+        s.message?.let { msg ->
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Text(
+                    msg, Modifier.fillMaxWidth().padding(Space.md),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
             }
-            Text(
-                title(section), Modifier.weight(1f).padding(start = 8.dp),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            TextButton(onClick = onExit) { Text(stringResource(R.string.back)) }
+            LaunchedEffect(msg) { kotlinx.coroutines.delay(2600); vm.clearMessage() }
         }
-        s.message?.let {
-            Text(
-                it, Modifier.fillMaxWidth().padding(12.dp),
-                color = MaterialTheme.colorScheme.primary,
-            )
-            LaunchedEffect(it) { kotlinx.coroutines.delay(2500); vm.clearMessage() }
-        }
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            when (section) {
-                Section.Home -> Home(vm, s, selectedChild, { selectedChild = it }) { section = it }
-                Section.Routines -> Routines(vm, s, selectedChild)
-                Section.Rewards -> Rewards(vm, s)
-                Section.Ownership -> Ownership(vm, s, selectedChild)
-                Section.Children -> Children(vm, s)
-                Section.Settings -> Settings(vm, container)
-            }
+        when (section) {
+            Section.Home -> Home(vm, s, selectedChild, { selectedChild = it }) { section = it }
+            Section.Routines -> Routines(vm, s, selectedChild)
+            Section.Rewards -> Rewards(vm, s)
+            Section.Ownership -> Ownership(vm, s, selectedChild)
+            Section.Children -> Children(vm, s)
+            Section.Settings -> Settings(vm, container)
         }
     }
 }
@@ -106,6 +102,8 @@ private fun title(sec: Section) = when (sec) {
     Section.Settings -> stringResource(R.string.nav_settings)
 }
 
+// ------------------------------------------------------------------ home ---
+
 @Composable
 private fun Home(
     vm: ParentViewModel,
@@ -117,49 +115,57 @@ private fun Home(
     LaunchedEffect(selected) { selected?.let { vm.loadApprovals(it) } }
     val questTitles = (s.quests.valueOrNull ?: emptyList()).associate { it.questId to it.title }
 
-    // per-child glance
+    // per-child glance — a horizontal strip
+    SectionHeader(stringResource(R.string.parent_family))
     when (val fam = s.family) {
-        is Loadable.Loading, Loadable.Idle -> Text("…")
+        is Loadable.Loading, Loadable.Idle -> HintText("…")
         is Loadable.Failed -> Text(fam.message, color = MaterialTheme.colorScheme.error)
-        is Loadable.Loaded -> fam.value.forEach { row ->
-            Card(
-                Modifier.fillMaxWidth().selectable(selected == row.child.childId) { onSelectChild(row.child.childId) },
-                colors = CardDefaults.cardColors(
-                    containerColor = if (selected == row.child.childId) MaterialTheme.colorScheme.secondary
-                    else MaterialTheme.colorScheme.surface,
-                ),
-            ) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(row.child.name, style = MaterialTheme.typography.titleMedium)
-                    val d = row.summary
-                    Text(
-                        stringResource(R.string.parent_done_line, faFraction(d?.verified ?: 0, d?.total ?: 0)),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    if ((d?.pending ?: 0) > 0) Text(
-                        stringResource(R.string.parent_pending_line, (d?.pending ?: 0).fa()),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+        is Loadable.Loaded -> Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Space.md),
+        ) {
+            fam.value.forEach { row ->
+                val on = selected == row.child.childId
+                Card(
+                    Modifier.width(150.dp).selectable(on) { onSelectChild(row.child.childId) },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (on) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surface,
+                    ),
+                ) {
+                    Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            Avatar(row.child.name, selected = on, size = 36.dp)
+                            Text(row.child.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                        }
+                        val d = row.summary
+                        Text(
+                            stringResource(R.string.parent_done_line, faFraction(d?.verified ?: 0, d?.total ?: 0)),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if ((d?.pending ?: 0) > 0) Text(
+                            stringResource(R.string.parent_pending_line, (d?.pending ?: 0).fa()),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
         }
     }
 
-    // reward-redemption inbox ("child asked to spend points")
-    (s.redemptions.valueOrNull ?: emptyList()).takeIf { it.isNotEmpty() }?.let { reqs ->
-        Text(
-            stringResource(R.string.parent_redemptions),
-            style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp),
-        )
+    // reward-redemption inbox
+    val reqs = s.redemptions.valueOrNull ?: emptyList()
+    if (reqs.isNotEmpty()) {
+        SectionHeader(stringResource(R.string.parent_redemptions), reqs.size)
         reqs.forEach { rq ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Card {
+                Column(Modifier.padding(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(
                         stringResource(R.string.parent_redemption_line, rq.childName, rq.rewardName, rq.cost.fa()),
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                         BigButton(stringResource(R.string.parent_redeem_grant), Modifier.weight(1f)) { vm.grantRedemption(rq.id) }
                         SecondaryButton(stringResource(R.string.parent_redeem_decline), Modifier.weight(1f), minHeight = 56.dp) { vm.declineRedemption(rq.id) }
                     }
@@ -169,17 +175,18 @@ private fun Home(
     }
 
     // approvals inbox
-    Text(stringResource(R.string.parent_approvals), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
     val cid = selected
+    val approvals = s.approvals.valueOrNull ?: emptyList()
+    SectionHeader(stringResource(R.string.parent_approvals), approvals.size)
     when (val ap = s.approvals) {
-        is Loadable.Idle, Loadable.Loading -> Text("…")
+        is Loadable.Idle, Loadable.Loading -> HintText("…")
         is Loadable.Failed -> Column {
             Text(ap.message, color = MaterialTheme.colorScheme.error)
             SecondaryButton(stringResource(R.string.retry)) { cid?.let { vm.loadApprovals(it) } }
         }
         is Loadable.Loaded -> if (ap.value.isEmpty()) {
-            Text(stringResource(R.string.parent_approvals_empty), style = MaterialTheme.typography.bodyLarge)
-        } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.parent_all_caught_up), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.tertiary)
+        } else {
             if (ap.value.size > 1 && cid != null) {
                 BigButton(stringResource(R.string.parent_approve_all, ap.value.size.fa())) { vm.approveAll(cid) }
             }
@@ -191,45 +198,75 @@ private fun Home(
         }
     }
 
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        SecondaryButton(stringResource(R.string.nav_routines), Modifier.weight(1f)) { onGo(Section.Routines) }
-        SecondaryButton(stringResource(R.string.nav_rewards), Modifier.weight(1f)) { onGo(Section.Rewards) }
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        SecondaryButton(stringResource(R.string.nav_ownership), Modifier.weight(1f)) { onGo(Section.Ownership) }
-        SecondaryButton(stringResource(R.string.nav_children), Modifier.weight(1f)) { onGo(Section.Children) }
-    }
-    SecondaryButton(stringResource(R.string.nav_settings), Modifier.fillMaxWidth()) { onGo(Section.Settings) }
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    SectionHeader(stringResource(R.string.parent_setup))
+    HubGrid(onGo)
 }
 
 @Composable
-private fun ApprovalCard(a: Approval, title: String, onDecide: (Boolean) -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(a.onDate.faDigits(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BigButton(stringResource(R.string.parent_approve), Modifier.weight(1f)) { onDecide(true) }
-                SecondaryButton(stringResource(R.string.parent_not_yet), Modifier.weight(1f), minHeight = 56.dp) { onDecide(false) }
+private fun HubGrid(onGo: (Section) -> Unit) {
+    val items = listOf(
+        Quad("🗓️", R.string.nav_routines, R.string.nav_routines_sub, Section.Routines),
+        Quad("🎁", R.string.nav_rewards, R.string.nav_rewards_sub, Section.Rewards),
+        Quad("🌱", R.string.nav_ownership, R.string.nav_ownership_sub, Section.Ownership),
+        Quad("🧒", R.string.nav_children, R.string.nav_children_sub, Section.Children),
+        Quad("⚙️", R.string.nav_settings, R.string.nav_settings_sub, Section.Settings),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        items.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+                pair.forEach { q ->
+                    HubCard(q.emoji, stringResource(q.title), stringResource(q.sub), Modifier.weight(1f)) { onGo(q.section) }
+                }
+                if (pair.size == 1) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             }
-            Text(stringResource(R.string.parent_not_yet_note), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+private data class Quad(val emoji: String, val title: Int, val sub: Int, val section: Section)
+
+@Composable
+private fun HubCard(emoji: String, title: String, sub: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier.clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+            Text(emoji, fontSize = 28.sp)
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(sub, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
+private fun ApprovalCard(a: Approval, title: String, onDecide: (Boolean) -> Unit) {
+    Card {
+        Column(Modifier.padding(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(a.onDate.faDigits(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                BigButton(stringResource(R.string.parent_approve), Modifier.weight(1f)) { onDecide(true) }
+                SecondaryButton(stringResource(R.string.parent_not_yet), Modifier.weight(1f), minHeight = 56.dp) { onDecide(false) }
+            }
+            HintText(stringResource(R.string.parent_not_yet_note))
+        }
+    }
+}
+
+// -------------------------------------------------------------- sections ---
+
+@Composable
 private fun Routines(vm: ParentViewModel, s: ParentState, childId: String?) {
-    Text(stringResource(R.string.routine_starters), style = MaterialTheme.typography.titleMedium)
+    SectionHeader(stringResource(R.string.routine_starters))
     val existing = (s.quests.valueOrNull ?: emptyList()).map { it.questId }.toSet()
     STARTERS.forEach { st ->
         val added = st.id in existing
-        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(vertical = Space.xs), verticalAlignment = Alignment.CenterVertically) {
             Text("${st.icon}  ${st.title}", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
             if (added) {
-                childId?.let {
-                    SecondaryButton(stringResource(R.string.routine_assign)) { vm.assign(it, st.id) }
-                }
+                childId?.let { SecondaryButton(stringResource(R.string.routine_assign)) { vm.assign(it, st.id) } }
             } else {
                 SecondaryButton(stringResource(R.string.routine_create)) {
                     vm.createQuest(st.id, st.title, st.icon, st.points, "daily")
@@ -238,13 +275,13 @@ private fun Routines(vm: ParentViewModel, s: ParentState, childId: String?) {
             }
         }
     }
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-    Text(stringResource(R.string.nav_routines), style = MaterialTheme.typography.titleMedium)
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    SectionHeader(stringResource(R.string.nav_routines))
     when (val q = s.quests) {
-        is Loadable.Loaded -> if (q.value.isEmpty()) Text(stringResource(R.string.routines_empty))
+        is Loadable.Loaded -> if (q.value.isEmpty()) HintText(stringResource(R.string.routines_empty))
         else q.value.forEach { Text("${it.icon}  ${it.title}  (${it.points.fa()})", Modifier.padding(vertical = 2.dp)) }
         is Loadable.Failed -> Text(q.message, color = MaterialTheme.colorScheme.error)
-        else -> Text("…")
+        else -> HintText("…")
     }
 }
 
@@ -254,11 +291,12 @@ private fun Rewards(vm: ParentViewModel, s: ParentState) {
     var name by remember { mutableStateOf("") }
     var cost by remember { mutableIntStateOf(20) }
     var byParent by remember { mutableStateOf(true) }
-    Text(stringResource(R.string.reward_add), style = MaterialTheme.typography.titleMedium)
+    SectionHeader(stringResource(R.string.reward_add))
     Field(stringResource(R.string.reward_name), name, { name = it })
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.reward_cost) + ": " + cost.fa(), Modifier.weight(1f))
         SecondaryButton("−") { if (cost > 5) cost -= 5 }
+        androidx.compose.foundation.layout.Spacer(Modifier.width(Space.sm))
         SecondaryButton("+") { cost += 5 }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -269,12 +307,12 @@ private fun Rewards(vm: ParentViewModel, s: ParentState) {
         vm.createReward("r" + System.currentTimeMillis(), name.trim(), "⭐", cost, if (byParent) "parent_confirmed" else "self_service")
         name = ""
     }
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
     when (val r = s.rewards) {
-        is Loadable.Loaded -> if (r.value.isEmpty()) Text(stringResource(R.string.rewards_empty))
+        is Loadable.Loaded -> if (r.value.isEmpty()) HintText(stringResource(R.string.rewards_empty))
         else r.value.forEach { Text("${it.icon}  ${it.name} — ${it.cost.fa()}", Modifier.padding(vertical = 2.dp)) }
         is Loadable.Failed -> Text(r.message, color = MaterialTheme.colorScheme.error)
-        else -> Text("…")
+        else -> HintText("…")
     }
 }
 
@@ -289,30 +327,31 @@ private fun Ownership(vm: ParentViewModel, s: ParentState, childId: String?) {
         OwnershipStage.CHILD_PARTICIPATED to R.string.ownership_leads,
         OwnershipStage.CHILD_OWNED to R.string.ownership_owns,
     )
-    Text(stringResource(R.string.ownership_support_title), style = MaterialTheme.typography.titleMedium)
+    SectionHeader(stringResource(R.string.ownership_support_title))
     val quests = s.quests.valueOrNull ?: emptyList()
     quests.forEach { q ->
-        Row(Modifier.fillMaxWidth().selectable(quest == q.questId) { quest = q.questId }.padding(vertical = 4.dp)) {
-            Text((if (quest == q.questId) "● " else "○ ") + "${q.icon}  ${q.title}")
+        SelectRow(selected = quest == q.questId, onClick = { quest = q.questId }) {
+            Text("${q.icon}  ${q.title}", style = MaterialTheme.typography.bodyLarge)
         }
     }
+    Text(stringResource(R.string.ownership_stage_label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.sm))
     labels.forEach { (st, res) ->
-        Row(Modifier.fillMaxWidth().selectable(stage == st) { stage = st }.padding(vertical = 4.dp)) {
-            Text((if (stage == st) "● " else "○ ") + stringResource(res))
+        SelectRow(selected = stage == st, onClick = { stage = st }) {
+            Text(stringResource(res), style = MaterialTheme.typography.bodyLarge)
         }
     }
     BigButton(stringResource(R.string.ownership_update), enabled = quest.isNotBlank() && childId != null) {
         childId?.let { vm.setOwnership(it, quest, stage) }
     }
-    Text(stringResource(R.string.ownership_note), style = MaterialTheme.typography.bodyMedium)
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-    Text(stringResource(R.string.ownership_suggestions), style = MaterialTheme.typography.titleMedium)
+    HintText(stringResource(R.string.ownership_note))
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    SectionHeader(stringResource(R.string.ownership_suggestions))
     when (val sug = s.suggestions) {
         is Loadable.Loaded -> sug.value.forEach { g ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card {
+                Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(quests.firstOrNull { it.questId == g.questId }?.title ?: g.questId)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                         SecondaryButton(stringResource(R.string.ownership_accept), Modifier.weight(1f)) { childId?.let { vm.acceptSuggestion(it, g.questId) } }
                         SecondaryButton(stringResource(R.string.ownership_dismiss), Modifier.weight(1f)) { childId?.let { vm.dismissSuggestion(it, g.questId) } }
                     }
@@ -328,24 +367,28 @@ private fun Children(vm: ParentViewModel, s: ParentState) {
     var name by remember { mutableStateOf("") }
     var band by remember { mutableStateOf("5-6") }
 
-    Text(stringResource(R.string.children_on_this_device), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.children_activate_help), style = MaterialTheme.typography.bodyMedium)
+    SectionHeader(stringResource(R.string.children_on_this_device))
+    HintText(stringResource(R.string.children_activate_help))
     s.children.forEach { c ->
         val here = c.childId in s.deviceChildIds
-        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("${c.name}  (${c.ageBand})", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            if (here) {
-                SecondaryButton(stringResource(R.string.children_activated)) { vm.deactivateChildHere(c.childId) }
-            } else {
-                SecondaryButton(stringResource(R.string.children_activate)) { vm.activateChildHere(c.childId, c.name) }
+        Card {
+            Row(Modifier.fillMaxWidth().padding(Space.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Avatar(c.name, selected = here, size = 40.dp)
+                Text("${c.name}  (${c.ageBand})", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                if (here) {
+                    GhostButton(stringResource(R.string.children_activated)) { vm.deactivateChildHere(c.childId) }
+                } else {
+                    SecondaryButton(stringResource(R.string.children_activate)) { vm.activateChildHere(c.childId, c.name) }
+                }
             }
         }
     }
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    Text(stringResource(R.string.children_add_title), style = MaterialTheme.typography.titleMedium)
     Field(stringResource(R.string.onb_child_name), name, { name = it })
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
         listOf("3-4", "5-6", "7-8").forEach { b ->
-            SecondaryButton((if (band == b) "● " else "") + b) { band = b }
+            SelectPill(b.faDigits(), selected = band == b, modifier = Modifier.weight(1f)) { band = b }
         }
     }
     BigButton(stringResource(R.string.onb_next), enabled = name.isNotBlank()) {
@@ -364,31 +407,33 @@ private fun Settings(vm: ParentViewModel, container: AppContainer) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(stringResource(R.string.settings_notif_verified), style = MaterialTheme.typography.bodyLarge)
-            Text(stringResource(R.string.settings_notifs_help), style = MaterialTheme.typography.bodyMedium)
+            HintText(stringResource(R.string.settings_notifs_help))
         }
         Switch(checked = notif, onCheckedChange = { notif = it; vm.setNotifications(it) })
     }
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-    Text(stringResource(R.string.settings_child_code), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.settings_pair_help), style = MaterialTheme.typography.bodyMedium)
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    SectionHeader(stringResource(R.string.settings_child_code))
+    HintText(stringResource(R.string.settings_pair_help))
     BigButton(stringResource(R.string.settings_create_code), enabled = childId != null) { childId?.let { vm.issueChildCode(it) } }
     s.lastChildCode?.let {
-        Text(
-            it.faDigits(),
-            Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.displaySmall,
-        )
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Text(
+                it.faDigits(),
+                Modifier.fillMaxWidth().padding(Space.lg),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.displaySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
     }
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-    Text(stringResource(R.string.settings_backend), style = MaterialTheme.typography.titleMedium)
-    Text(stringResource(R.string.settings_backend_help), style = MaterialTheme.typography.bodyMedium)
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    SectionHeader(stringResource(R.string.settings_backend))
+    HintText(stringResource(R.string.settings_backend_help))
     Field(stringResource(R.string.settings_backend_url), url, { url = it }, ltr = true)
     SecondaryButton(stringResource(R.string.settings_save_restart)) { container.setBaseUrl(url); context.restartApp() }
-    HorizontalDivider(Modifier.padding(vertical = 8.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SecondaryButton(stringResource(R.string.settings_signout), Modifier.weight(1f)) { vm.signOut() }
-        SecondaryButton(stringResource(R.string.settings_forget), Modifier.weight(1f)) { vm.forgetDevice() }
+    HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+        GhostButton(stringResource(R.string.settings_signout)) { vm.signOut() }
+        GhostButton(stringResource(R.string.settings_forget)) { vm.forgetDevice() }
     }
-    Text("", Modifier.padding(bottom = 24.dp))
 }

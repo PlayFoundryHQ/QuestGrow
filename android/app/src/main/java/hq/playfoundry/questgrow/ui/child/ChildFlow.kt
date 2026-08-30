@@ -5,9 +5,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -27,13 +27,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,11 +58,14 @@ import hq.playfoundry.questgrow.data.model.KidReward
 import hq.playfoundry.questgrow.data.model.QuestVisualState
 import hq.playfoundry.questgrow.data.model.RedeemOutcome
 import hq.playfoundry.questgrow.data.model.TodayQuest
+import hq.playfoundry.questgrow.ui.Avatar
 import hq.playfoundry.questgrow.ui.BigButton
 import hq.playfoundry.questgrow.ui.Loading
 import hq.playfoundry.questgrow.ui.SecondaryButton
+import hq.playfoundry.questgrow.ui.Space
 import hq.playfoundry.questgrow.ui.collectAsStateSafe
 import hq.playfoundry.questgrow.ui.fa
+import hq.playfoundry.questgrow.ui.faWeekdayToday
 import hq.playfoundry.questgrow.ui.isReducedMotion
 
 @Composable
@@ -107,29 +107,62 @@ fun ChildFlow(container: AppContainer, onGrownUps: () -> Unit) {
 }
 
 @Composable
+private fun BoardHeader(childName: String, onGrownUps: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = Space.lg, end = Space.sm, top = Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.kid_hi, childName.ifBlank { "دوست من" }),
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Text(
+                stringResource(R.string.kid_today_is, faWeekdayToday()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable(onClick = onGrownUps).heightIn(min = 44.dp)
+                .padding(horizontal = Space.md, vertical = Space.sm)
+                .semantics { contentDescription = "بزرگترها" },
+        ) {
+            Text(
+                "بزرگترها ›",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun AvatarRow(vm: ChildViewModel) {
     val kids by vm.deviceChildren.collectAsStateSafe()
     val active by vm.activeChildId.collectAsStateSafe()
     if (kids.size < 2) return
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = Space.lg, vertical = Space.sm),
+        horizontalArrangement = Arrangement.spacedBy(Space.md),
     ) {
         kids.forEach { k ->
             val on = k.childId == active
-            AssistChip(
-                onClick = { vm.switchChild(k.childId) },
-                label = { Text(k.name, style = MaterialTheme.typography.titleMedium) },
-                leadingIcon = { Text(k.name.take(1)) },
-                colors = if (on) AssistChipDefaults.assistChipColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ) else AssistChipDefaults.assistChipColors(),
-                border = if (on) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else AssistChipDefaults.assistChipBorder(true),
-                modifier = Modifier.heightIn(min = 44.dp)
+            Column(
+                Modifier.clip(MaterialTheme.shapes.medium).clickable { vm.switchChild(k.childId) }
+                    .padding(Space.xs)
                     .semantics { contentDescription = k.name + (if (on) "، انتخاب‌شده" else "") },
-            )
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Avatar(k.name, selected = on, size = 56.dp)
+                Text(
+                    k.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -158,59 +191,60 @@ private fun TodayScreen(
         }
         is TodayUi.Ready -> {
             val view = s.view
+            val kids by vm.deviceChildren.collectAsStateSafe()
+            val active by vm.activeChildId.collectAsStateSafe()
+            val name = kids.firstOrNull { it.childId == active }?.name.orEmpty()
             LaunchedEffect(view.onDate, view.childId) {
                 if (view.profile.autoReadOnOpen) {
                     narrator.say(view.visibleQuests.joinToString("، ") { it.title })
                 }
             }
-            Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                // grown-up gate — a visible, single-tap chip (the PIN pad is the
-                // actual barrier; a hidden long-press was undiscoverable).
-                TextButton(
-                    onClick = onGrownUps,
-                    modifier = Modifier.padding(top = 4.dp).heightIn(min = 44.dp)
-                        .semantics { contentDescription = "بزرگترها" },
-                ) {
-                    Text(
-                        "بزرگترها ›",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            Column(Modifier.fillMaxSize()) {
+                BoardHeader(name, onGrownUps)
                 AvatarRow(vm)
                 if (view.stale) Text(
                     stringResource(R.string.kid_offline_banner),
-                    Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                    Modifier.fillMaxWidth().padding(horizontal = Space.lg, vertical = Space.xs)
                         .semantics { contentDescription = "آفلاین. تختهٔ قبلی نشان داده می‌شود." },
                     color = MaterialTheme.colorScheme.secondary,
                     style = MaterialTheme.typography.labelLarge,
                 )
                 if (s.queued > 0) Text(
                     stringResource(R.string.kid_queued, s.queued.fa()),
+                    Modifier.padding(horizontal = Space.lg),
                     color = MaterialTheme.colorScheme.secondary,
                 )
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(160.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    items(view.visibleQuests, key = { it.questId }) { q ->
-                        QuestCard(q, showLabel = view.profile.showLabels) {
-                            if (q.state == QuestVisualState.AVAILABLE) onOpen(q)
+                if (view.visibleQuests.isEmpty()) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(
+                            stringResource(R.string.kid_nothing_today),
+                            style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center,
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(Space.lg),
+                        horizontalArrangement = Arrangement.spacedBy(Space.md),
+                        verticalArrangement = Arrangement.spacedBy(Space.md),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        items(view.visibleQuests, key = { it.questId }) { q ->
+                            QuestCard(q, showLabel = view.profile.showLabels) {
+                                if (q.state == QuestVisualState.AVAILABLE) onOpen(q)
+                            }
                         }
                     }
                 }
                 if (view.allDone) Text(
                     stringResource(R.string.kid_all_done),
-                    Modifier.fillMaxWidth().padding(8.dp),
+                    Modifier.fillMaxWidth().padding(Space.sm),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleLarge,
                 )
                 Row(
-                    Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = Space.lg, vertical = Space.md),
+                    horizontalArrangement = Arrangement.spacedBy(Space.md),
                 ) {
                     SecondaryButton(
                         "⭐ " + stringResource(R.string.kid_stars),
@@ -239,33 +273,37 @@ private fun QuestCard(q: TodayQuest, showLabel: Boolean, onClick: () -> Unit) {
     Card(
         Modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .heightIn(min = 168.dp)
             .combinedClickable(onClick = onClick, onLongClick = {})
             .semantics { contentDescription = q.title + (stateText?.let { "، $it" } ?: "") },
         colors = CardDefaults.cardColors(
-            containerColor = if (done) MaterialTheme.colorScheme.surfaceVariant
-            else MaterialTheme.colorScheme.surface,
+            containerColor = when {
+                done -> MaterialTheme.colorScheme.tertiaryContainer
+                waiting -> MaterialTheme.colorScheme.secondaryContainer
+                else -> MaterialTheme.colorScheme.surface
+            },
         ),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(if (done || waiting) 0.dp else 3.dp),
     ) {
         Column(
-            Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.Center,
+            Modifier.fillMaxWidth().padding(Space.md),
+            verticalArrangement = Arrangement.spacedBy(Space.xs, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(q.icon.ifBlank { "⭐" }, fontSize = 64.sp)
             if (showLabel) Text(
                 q.title,
-                Modifier.padding(top = 8.dp),
+                Modifier.padding(top = Space.sm),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
             )
             stateText?.let {
                 Text(
-                    it, Modifier.padding(top = 4.dp),
+                    it, Modifier.padding(top = Space.xs),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = if (done) MaterialTheme.colorScheme.onTertiaryContainer
+                    else MaterialTheme.colorScheme.onSecondaryContainer,
                 )
             }
         }
@@ -275,21 +313,19 @@ private fun QuestCard(q: TodayQuest, showLabel: Boolean, onClick: () -> Unit) {
 @Composable
 private fun DoItScreen(title: String, icon: String, narrator: Narrator, onBack: () -> Unit, onDid: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier.fillMaxSize().padding(Space.xl),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        TextButton(onClick = onBack) {
-            Text("‹ " + stringResource(R.string.back), style = MaterialTheme.typography.titleMedium)
-        }
+        hq.playfoundry.questgrow.ui.GhostButton("‹ " + stringResource(R.string.back), onClick = onBack)
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(icon.ifBlank { "⭐" }, fontSize = 96.sp)
+            Text(icon.ifBlank { "⭐" }, fontSize = 110.sp)
             Text(
-                title, Modifier.padding(top = 8.dp),
-                style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
+                title, Modifier.padding(top = Space.md),
+                style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center,
             )
             if (narrator.hasVoice) BigButton(
                 stringResource(R.string.kid_hear),
-                Modifier.padding(top = 20.dp),
+                Modifier.padding(top = Space.xl),
                 contentDescription = stringResource(R.string.cd_hear, title),
             ) { narrator.say(title) }
         }
@@ -317,39 +353,42 @@ private fun CelebrationScreen(vm: ChildViewModel, onDone: () -> Unit) {
         ).value
     }
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+        Modifier.fillMaxSize().padding(Space.xl),
+        verticalArrangement = Arrangement.spacedBy(Space.lg, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("⭐", fontSize = 110.sp, modifier = Modifier.graphicsLayer(scaleX = scale, scaleY = scale))
-        cel?.let { Text("+${it.pointsAwarded.fa()}", style = MaterialTheme.typography.displaySmall) }
-        BigButton(stringResource(R.string.kid_back_to_today), Modifier.padding(top = 8.dp)) { onDone() }
+        Text("⭐", fontSize = 120.sp, modifier = Modifier.graphicsLayer(scaleX = scale, scaleY = scale))
+        cel?.let { Text("+${it.pointsAwarded.fa()}", style = MaterialTheme.typography.displayMedium) }
+        BigButton(stringResource(R.string.kid_back_to_today), Modifier.padding(top = Space.sm)) { onDone() }
     }
 }
 
 @Composable
 private fun ProgressScreen(vm: ChildViewModel, onBack: () -> Unit) {
     val p by vm.progress.collectAsStateSafe()
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        TextButton(onClick = onBack) {
-            Text("‹ " + stringResource(R.string.back), style = MaterialTheme.typography.titleMedium)
-        }
-        Text(stringResource(R.string.kid_this_week), style = MaterialTheme.typography.titleLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxSize().padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
+        hq.playfoundry.questgrow.ui.GhostButton("‹ " + stringResource(R.string.back), onClick = onBack)
+        Text(stringResource(R.string.kid_this_week), style = MaterialTheme.typography.headlineSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             repeat(7) { i ->
                 Box(
-                    Modifier.size(36.dp).clip(CircleShape).background(
-                        if (i < (p?.weekActiveDays ?: 0)) MaterialTheme.colorScheme.secondary
+                    Modifier.size(38.dp).clip(CircleShape).background(
+                        if (i < (p?.weekActiveDays ?: 0)) MaterialTheme.colorScheme.tertiary
                         else MaterialTheme.colorScheme.surfaceVariant,
                     ),
-                )
+                    contentAlignment = Alignment.Center,
+                ) { if (i < (p?.weekActiveDays ?: 0)) Text("✓", color = MaterialTheme.colorScheme.onTertiary) }
             }
         }
         Text(stringResource(R.string.kid_week_days, "${(p?.weekActiveDays ?: 0).fa()} روز"))
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.kid_stars), style = MaterialTheme.typography.titleLarge)
-        Text("${(p?.lifetimeAchievement ?: 0).fa()} ⭐", style = MaterialTheme.typography.headlineSmall)
-        Text(stringResource(R.string.kid_to_spend, (p?.spendableBalance ?: 0).fa()))
+        Spacer(Modifier.height(Space.sm))
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Column(Modifier.fillMaxWidth().padding(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                Text(stringResource(R.string.kid_stars), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("${(p?.lifetimeAchievement ?: 0).fa()} ⭐", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(stringResource(R.string.kid_to_spend, (p?.spendableBalance ?: 0).fa()), color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
     }
 }
 
@@ -360,11 +399,9 @@ private fun RewardsScreen(vm: ChildViewModel, narrator: Narrator, onBack: () -> 
     var flash by remember { mutableStateOf<String?>(null) }
     val askedGrownupText = stringResource(R.string.kid_reward_asked)
 
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        TextButton(onClick = onBack) {
-            Text("‹ " + stringResource(R.string.back), style = MaterialTheme.typography.titleMedium)
-        }
-        Text(stringResource(R.string.kid_rewards_title), style = MaterialTheme.typography.headlineSmall)
+    Column(Modifier.fillMaxSize().padding(Space.xl), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        hq.playfoundry.questgrow.ui.GhostButton("‹ " + stringResource(R.string.back), onClick = onBack)
+        Text(stringResource(R.string.kid_rewards_title), style = MaterialTheme.typography.headlineMedium)
 
         when (val s = state) {
             is RewardsUi.Loading -> Loading(Modifier.height(120.dp))
@@ -373,14 +410,20 @@ private fun RewardsScreen(vm: ChildViewModel, narrator: Narrator, onBack: () -> 
                 BigButton(stringResource(R.string.retry)) { vm.loadRewards() }
             }
             is RewardsUi.Ready -> {
-                Text(
-                    stringResource(R.string.kid_balance, s.rewards.spendableBalance.fa()),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Text(
+                        stringResource(R.string.kid_balance, s.rewards.spendableBalance.fa()),
+                        Modifier.fillMaxWidth().padding(Space.lg),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 flash?.let {
-                    Text(it, Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary)
+                    Text(
+                        it, Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.tertiary,
+                    )
                 }
                 if (s.rewards.rewards.isEmpty()) {
                     Text(stringResource(R.string.kid_rewards_empty), style = MaterialTheme.typography.bodyLarge)
@@ -395,14 +438,14 @@ private fun RewardsScreen(vm: ChildViewModel, narrator: Narrator, onBack: () -> 
             onDismissRequest = { asking = null },
             title = { Text(stringResource(R.string.kid_reward_ask_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                     Text("${r.icon}  ${r.name}", style = MaterialTheme.typography.titleMedium)
                     Text(stringResource(R.string.kid_reward_ask_body, r.cost.fa()))
                     if (r.needsGrownup) Text(stringResource(R.string.kid_reward_ask_grownup))
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                hq.playfoundry.questgrow.ui.GhostButton(stringResource(R.string.yes)) {
                     val chosen = r
                     asking = null
                     vm.redeem(chosen) { outcome ->
@@ -412,23 +455,25 @@ private fun RewardsScreen(vm: ChildViewModel, narrator: Narrator, onBack: () -> 
                             is RedeemOutcome.Rejected -> outcome.detail
                         }
                     }
-                }) { Text(stringResource(R.string.yes)) }
+                }
             },
-            dismissButton = { TextButton(onClick = { asking = null }) { Text(stringResource(R.string.no)) } },
+            dismissButton = {
+                hq.playfoundry.questgrow.ui.GhostButton(stringResource(R.string.no)) { asking = null }
+            },
         )
     }
 }
 
 @Composable
 private fun RewardCard(r: KidReward, onGet: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(
-            Modifier.fillMaxWidth().padding(14.dp),
+            Modifier.fillMaxWidth().padding(Space.lg),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.md),
         ) {
             Text(r.icon.ifBlank { "🎁" }, fontSize = 40.sp)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text(r.name, style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(R.string.kid_reward_cost, r.cost.fa()),
@@ -443,7 +488,7 @@ private fun RewardCard(r: KidReward, onGet: () -> Unit) {
                     color = MaterialTheme.colorScheme.secondary,
                 )
                 r.affordable -> SecondaryButton(
-                    stringResource(R.string.kid_reward_get), minHeight = 56.dp, onClick = onGet,
+                    stringResource(R.string.kid_reward_get), minHeight = 52.dp, onClick = onGet,
                 )
                 else -> Text(
                     stringResource(R.string.kid_reward_locked),
@@ -464,12 +509,12 @@ private fun CallAGrownUp(onGrownUps: () -> Unit) {
 @Composable
 private fun CentredHero(emoji: String, title: String, button: String, onClick: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically),
+        Modifier.fillMaxSize().padding(Space.xl),
+        verticalArrangement = Arrangement.spacedBy(Space.lg, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(emoji, fontSize = 96.sp)
+        Text(emoji, fontSize = 100.sp)
         Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-        BigButton(button, Modifier.padding(top = 8.dp)) { onClick() }
+        BigButton(button, Modifier.padding(top = Space.sm)) { onClick() }
     }
 }
