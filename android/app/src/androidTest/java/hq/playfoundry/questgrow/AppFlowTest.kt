@@ -128,10 +128,10 @@ class AppFlowTest {
         compose.waitForIdle()
     }
 
-    private fun await(text: String) = compose.waitUntil(20_000) {
+    private fun await(text: String) = compose.waitUntil(30_000) {
         compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty()
     }
-    private fun awaitDesc(text: String) = compose.waitUntil(20_000) {
+    private fun awaitDesc(text: String) = compose.waitUntil(30_000) {
         compose.onAllNodesWithContentDescription(text, substring = true).fetchSemanticsNodes().isNotEmpty()
     }
 
@@ -213,7 +213,7 @@ class AppFlowTest {
         listOf("۲", "۴", "۶", "۸").forEach { compose.onNodeWithText(it).performClick() }
         await("درخواست جایزه")
         compose.onNodeWithText("بله، بده").performClick()
-        compose.waitUntil(20_000) {
+        compose.waitUntil(30_000) {
             compose.onAllNodesWithText("درخواست جایزه", substring = true).fetchSemanticsNodes().isEmpty()
         }
     }

@@ -1,6 +1,7 @@
 package hq.playfoundry.questgrow.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -166,6 +167,39 @@ fun Avatar(
             textAlign = TextAlign.Center,
         )
     }
+}
+
+/** A selectable pill — for a small set of mutually-exclusive options. */
+@Composable
+fun SelectPill(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val bg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier
+            .clip(CircleShape)
+            .background(bg)
+            .clickable(onClick = onClick)
+            .heightIn(min = 44.dp)
+            .padding(horizontal = Space.lg, vertical = Space.sm),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, style = MaterialTheme.typography.labelLarge, color = fg, textAlign = TextAlign.Center)
+    }
+}
+
+/** A full-width selectable row (a soft card that fills when chosen). */
+@Composable
+fun SelectRow(selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+    Box(
+        modifier.fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(bg)
+            .clickable(onClick = onClick)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = Space.lg, vertical = Space.md),
+        contentAlignment = Alignment.CenterStart,
+    ) { content() }
 }
 
 /** Progress dots for a short guided flow — the current step is a wider pill. */

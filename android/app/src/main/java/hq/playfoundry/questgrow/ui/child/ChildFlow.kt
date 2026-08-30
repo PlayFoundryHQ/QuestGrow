@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -274,7 +273,7 @@ private fun QuestCard(q: TodayQuest, showLabel: Boolean, onClick: () -> Unit) {
     Card(
         Modifier
             .fillMaxWidth()
-            .aspectRatio(0.92f)
+            .heightIn(min = 168.dp)
             .combinedClickable(onClick = onClick, onLongClick = {})
             .semantics { contentDescription = q.title + (stateText?.let { "، $it" } ?: "") },
         colors = CardDefaults.cardColors(
@@ -287,11 +286,11 @@ private fun QuestCard(q: TodayQuest, showLabel: Boolean, onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(if (done || waiting) 0.dp else 3.dp),
     ) {
         Column(
-            Modifier.fillMaxSize().padding(Space.md),
-            verticalArrangement = Arrangement.Center,
+            Modifier.fillMaxWidth().padding(Space.md),
+            verticalArrangement = Arrangement.spacedBy(Space.xs, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(q.icon.ifBlank { "⭐" }, fontSize = 72.sp)
+            Text(q.icon.ifBlank { "⭐" }, fontSize = 64.sp)
             if (showLabel) Text(
                 q.title,
                 Modifier.padding(top = Space.sm),

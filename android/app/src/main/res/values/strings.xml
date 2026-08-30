@@ -86,6 +86,8 @@
     <string name="nav_settings_sub">اعلان‌ها، کد کودک، سرور</string>
     <string name="parent_family">کودکان</string>
     <string name="parent_all_caught_up">همه‌چیز به‌روز است ✓</string>
+    <string name="ownership_stage_label">میزان کمک</string>
+    <string name="children_add_title">افزودن کودک تازه</string>
 
     <!-- kid: switch child + rewards -->
     <string name="kid_switch">کدام کودک؟</string>

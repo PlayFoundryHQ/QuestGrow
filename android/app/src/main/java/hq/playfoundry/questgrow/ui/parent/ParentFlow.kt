@@ -45,6 +45,8 @@ import hq.playfoundry.questgrow.ui.GhostButton
 import hq.playfoundry.questgrow.ui.HintText
 import hq.playfoundry.questgrow.ui.SectionHeader
 import hq.playfoundry.questgrow.ui.SecondaryButton
+import hq.playfoundry.questgrow.ui.SelectPill
+import hq.playfoundry.questgrow.ui.SelectRow
 import hq.playfoundry.questgrow.ui.Space
 import hq.playfoundry.questgrow.ui.STARTERS
 import hq.playfoundry.questgrow.ui.collectAsStateSafe
@@ -328,13 +330,14 @@ private fun Ownership(vm: ParentViewModel, s: ParentState, childId: String?) {
     SectionHeader(stringResource(R.string.ownership_support_title))
     val quests = s.quests.valueOrNull ?: emptyList()
     quests.forEach { q ->
-        Row(Modifier.fillMaxWidth().selectable(quest == q.questId) { quest = q.questId }.padding(vertical = Space.xs)) {
-            Text((if (quest == q.questId) "● " else "○ ") + "${q.icon}  ${q.title}")
+        SelectRow(selected = quest == q.questId, onClick = { quest = q.questId }) {
+            Text("${q.icon}  ${q.title}", style = MaterialTheme.typography.bodyLarge)
         }
     }
+    Text(stringResource(R.string.ownership_stage_label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.sm))
     labels.forEach { (st, res) ->
-        Row(Modifier.fillMaxWidth().selectable(stage == st) { stage = st }.padding(vertical = Space.xs)) {
-            Text((if (stage == st) "● " else "○ ") + stringResource(res))
+        SelectRow(selected = stage == st, onClick = { stage = st }) {
+            Text(stringResource(res), style = MaterialTheme.typography.bodyLarge)
         }
     }
     BigButton(stringResource(R.string.ownership_update), enabled = quest.isNotBlank() && childId != null) {
@@ -381,10 +384,11 @@ private fun Children(vm: ParentViewModel, s: ParentState) {
         }
     }
     HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    Text(stringResource(R.string.children_add_title), style = MaterialTheme.typography.titleMedium)
     Field(stringResource(R.string.onb_child_name), name, { name = it })
     Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
         listOf("3-4", "5-6", "7-8").forEach { b ->
-            SecondaryButton((if (band == b) "● " else "") + b) { band = b }
+            SelectPill(b.faDigits(), selected = band == b, modifier = Modifier.weight(1f)) { band = b }
         }
     }
     BigButton(stringResource(R.string.onb_next), enabled = name.isNotBlank()) {

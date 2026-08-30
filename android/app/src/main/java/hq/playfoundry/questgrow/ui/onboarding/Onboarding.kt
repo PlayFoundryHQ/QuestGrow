@@ -116,7 +116,7 @@ fun OnboardingFlow(container: AppContainer, onDone: () -> Unit) {
             Step.Pair -> {
                 var code by remember { mutableStateOf("") }
                 var wrong by remember { mutableStateOf(false) }
-                Hero("🔢")
+                Hero("🔑")
                 if (wrong) Text(stringResource(R.string.pair_wrong), color = MaterialTheme.colorScheme.error)
                 DigitPad(value = code, onValue = { code = it; wrong = false }, length = 6, modifier = Modifier.fillMaxWidth())
                 BigButton(stringResource(R.string.code_start), Modifier.padding(top = Space.md), enabled = !busy && code.length == 6) {
