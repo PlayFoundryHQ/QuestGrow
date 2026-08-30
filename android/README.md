@@ -17,8 +17,9 @@ narration in Persian. The app forces `fa` regardless of device locale.
   no login on the family device (`CHILD_JOURNEY` "lands directly on Today").
   Big illustrated cards, one tap → picture + «بشنو» / «انجام دادم» → calm
   "منتظر بزرگترت" or an instant celebration.
-- **Parent gate.** A small, kid-resistant corner affordance (**long-press
-  only**) → a 4-digit **PIN pad**. Email + password are set once at signup and
+- **Parent gate.** A small, low-emphasis "بزرگترها ›" text button in the
+  board's top corner → a 4-digit **PIN pad** (the PIN is the real barrier;
+  a hidden long-press was undiscoverable). Email + password are set once at signup and
   stored on the device (`TokenStore`) so the everyday gate is PIN-only; the
   client replays login+unlock behind it.
 - **Parent home** = each child's day in a line + the **approvals inbox** front

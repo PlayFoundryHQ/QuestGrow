@@ -176,7 +176,7 @@ class AppFlowTest {
         provisionParent()
         compose.waitForIdle()
         // long-press the corner gate
-        compose.onNodeWithContentDescription("بزرگترها").performTouchInput { longClick() }
+        compose.onNodeWithContentDescription("بزرگترها").performClick()
         await("رمز والد را وارد کنید")
         listOf("۰", "۰", "۰", "۰").forEach { compose.onNodeWithText(it).performClick() }
         await("رمز اشتباه است")
@@ -187,7 +187,7 @@ class AppFlowTest {
 
     @Test fun parentHome_approvalsInbox_approve() {
         provisionParent()
-        compose.onNodeWithContentDescription("بزرگترها").performTouchInput { longClick() }
+        compose.onNodeWithContentDescription("بزرگترها").performClick()
         await("رمز والد را وارد کنید")
         listOf("۲", "۴", "۶", "۸").forEach { compose.onNodeWithText(it).performClick() }
         await("هنوز نه")           // an approval card is on screen

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -121,15 +122,19 @@ private fun TodayScreen(
                 }
             }
             Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                Box(
-                    Modifier
-                        .padding(top = 6.dp)
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .combinedClickable(onClick = {}, onLongClick = onGrownUps)
+                // grown-up gate — a visible, single-tap chip (the PIN pad is the
+                // actual barrier; a hidden long-press was undiscoverable).
+                TextButton(
+                    onClick = onGrownUps,
+                    modifier = Modifier.padding(top = 4.dp).heightIn(min = 44.dp)
                         .semantics { contentDescription = "بزرگترها" },
-                )
+                ) {
+                    Text(
+                        "بزرگترها ›",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (view.stale) Text(
                     stringResource(R.string.kid_offline_banner),
                     Modifier.fillMaxWidth().padding(vertical = 6.dp)
