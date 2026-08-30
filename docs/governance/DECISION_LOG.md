@@ -36,6 +36,11 @@ between "this is deliberate and load-bearing" and "this is incidental wording".
   constitution; this log records decisions made *under* it, not amendments to
   it. Where a decision extended a principle, that is noted and the change
   lives in CORE_PRINCIPLES itself.
+- [LEADERSHIP_PROTOCOL](./LEADERSHIP_PROTOCOL.md) governs *who may act on and
+  change* the sources above. This log is Tier B in its source-of-truth
+  hierarchy: operationally supreme for settled questions, but never a route to
+  manufacture a new decision by reinterpreting an old one — that is a PO
+  escalation.
 
 ## Decision format
 

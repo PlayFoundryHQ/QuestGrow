@@ -40,8 +40,9 @@ docs/
 │   ├── TECHNICAL_MODEL.md      Domain concepts, state machines, authority matrix, INV-1…18, AC-1…15, TOQ dispositions
 │   └── IMPLEMENTATION_NOTES.md Code → contract map; implementation-level notes (IL-*)
 │
-└── governance/             FROZEN DECISIONS
-    └── DECISION_LOG.md         DECISION-001 … DECISION-019 + reserved
+└── governance/             FROZEN DECISIONS + THE OPERATING CONSTITUTION
+    ├── DECISION_LOG.md         DECISION-001 … DECISION-019 + reserved
+    └── LEADERSHIP_PROTOCOL.md  Autonomous Leadership & Execution Constitution — authority boundary, source-of-truth tiers, phase loop, escalation/stop conditions
 ```
 
 **Implementation.** `src/questgrow/` is the MVP domain, written strictly
@@ -61,8 +62,12 @@ INV-1…18 suites. See `architecture/IMPLEMENTATION_NOTES.md`.
 4. **Architecture** (`architecture/`) is the contract an implementation must
    obey — domain, state machines, invariants, acceptance criteria — sitting
    between the ownership model and `product-delivery/ARCHITECTURE.md`.
-5. **Governance** (`governance/DECISION_LOG.md`) is the frozen record of
-   durable decisions (DECISION-001 … DECISION-019).
+5. **Governance** (`governance/`) holds the frozen record of durable decisions
+   (`DECISION_LOG.md`, DECISION-001 … DECISION-019) and the
+   [Leadership Protocol](./governance/LEADERSHIP_PROTOCOL.md) — the ratified
+   constitution under which an autonomous leadership agent may execute the
+   MVP-readiness arc (through D1) without per-action approval, while product
+   authority stays with the Product Owner.
 
 ## Governing rule
 
