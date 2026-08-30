@@ -22,9 +22,11 @@ ingress:
   className: traefik
   host: questgrow.opscale.ir
   tls:
-    enabled: true           # cert-manager http01 → questgrow-tls (proven on this cluster)
-    secretName: questgrow-tls
-    clusterIssuer: letsencrypt-http01
+    # ArvanCloud edge-terminates TLS with a *.opscale.ir wildcard cert
+    # (verified: same edge IPs as downtime, Let's Encrypt CN=opscale.ir).
+    # No in-cluster cert needed — Traefik's default cert on websecure is
+    # fine for the ArvanCloud→origin hop.
+    enabled: false
 
 resources:
   requests: { cpu: 25m, memory: 96Mi }
