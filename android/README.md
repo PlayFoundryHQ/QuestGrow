@@ -109,6 +109,13 @@ animation scale is 0); large readable type.
   the new Loading/Empty/Failed(+retry) section states, and the clean
   backend-URL relaunch (Settings → "Save & restart app": the process
   restarts and re-enters at the mode chooser — no `killProcess`).
+- *Cycle 3, backend-URL round trip* — verified end to end against two live
+  local backends: app starts on the `BuildConfig` default, the URL is
+  changed in Settings, the app relaunches, and every subsequent
+  auth + API call goes to the **new** backend (confirmed by which seeded
+  child name renders and by each backend's request log); the old URL
+  receives zero requests and `questgrow_prefs.xml` holds only the new
+  `base_url`.
 - All at font scale 1.0, and re-checked at **1.5× and 2.0×** — every screen
   stays scrollable, text wraps, no control is clipped or unreachable.
 
