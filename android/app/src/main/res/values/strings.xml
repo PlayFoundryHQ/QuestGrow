@@ -144,17 +144,18 @@
     <string name="nav_ownership">واگذاری مسئولیت</string>
     <string name="nav_settings">تنظیمات</string>
 
-    <!-- routines -->
-    <string name="routine_add">روتین تازه</string>
-    <string name="routine_title">عنوان</string>
-    <string name="routine_icon">تصویر</string>
-    <string name="routine_points">امتیاز</string>
-    <string name="routine_recurrence">تکرار</string>
+    <!-- routines — a "روتین" (family routine) is created once for the account,
+         then given to one or more children. "روتین آماده" is a starter template;
+         tapping it creates the family routine (if new) and adds it to the
+         selected child's day in one step. -->
+    <string name="routine_pick_child">این روتین‌ها برای کدام کودک؟</string>
     <string name="routine_starters">روتین‌های آماده</string>
-    <string name="routine_create">ساختن</string>
-    <string name="routine_assign_title">دادن روتین به کودک</string>
-    <string name="routine_assign">اختصاص</string>
-    <string name="routines_empty">هنوز روتینی نیست — یکی بسازید یا از آماده‌ها بردارید.</string>
+    <string name="routine_starters_sub">با یک ضربه به برنامهٔ %1$s اضافه می‌شود.</string>
+    <string name="routine_add_to_child">افزودن به %1$s</string>
+    <string name="routine_add_plain">افزودن</string>
+    <string name="routines_family">روتین‌های خانواده</string>
+    <string name="routines_family_sub">همهٔ روتین‌هایی که ساخته‌ای. هر کدام را می‌توانی به چند کودک بدهی.</string>
+    <string name="routines_empty">هنوز روتینی نساخته‌ای — از روتین‌های آماده یکی را انتخاب کن.</string>
 
     <!-- rewards -->
     <string name="reward_add">جایزهٔ تازه</string>

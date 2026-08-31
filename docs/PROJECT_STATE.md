@@ -11,8 +11,18 @@
 > `2f15632` (release `v0.6.3`); this file and the accompanying documentation
 > corrections are added in the immediately following **docs-only** commit
 > `80449ec` (backend + Android suites pass unchanged — no behaviour change).
-> Read the current `HEAD` (`git rev-parse HEAD`) and confirm it is a
-> descendant of `80449ec` with no code changes since. See §19.
+>
+> **2026-08-31 — UX/terminology audit pass.** A whole-product parent-facing
+> semantic audit (the Routines screen was the worked example). One small,
+> in-model Android change: the parent **Routines** screen now shows which child
+> a routine is being added to (a child switcher on the screen itself) and uses a
+> single explicit action label — **«افزودن به {نام}»** — in place of the two
+> unlabelled-target buttons «ساختن» / «اختصاص»; six dead string resources
+> removed. No domain, API, or data-model change; no settled decision reopened.
+> Findings that need an owner call are in §10/§11. Backend unchanged
+> (60/8 + 116/1); Android unit 24 + lint pass; instrumented **not run this pass**
+> (no emulator available — the change is copy + one picker row, `AppFlowTest`
+> does not exercise the Routines screen).
 
 ---
 
@@ -70,7 +80,7 @@ Each row: **1** implemented in code · **2** covered by an automated test · **3
 | Parent home (child glance + inboxes + setup hub) | ✓ | ✓ (approvals inbox) | ✓ | ✓ | ✓ | v0.6 card-hub redesign |
 | Approvals inbox (approve / not-yet / approve-all) | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | **Reward-redemption inbox** (grant / decline) | ✓ | ✓ (`AppFlowTest`) | ✓ | ✓ | ✓ | v0.5.0; `GET /v1/redemptions` |
-| Routines: starter templates, create, assign | ✓ | — | ✓ | ✓ | ✓ | |
+| Routines: starter templates → create family routine → add to a child | ✓ | — | ✓ | ✓ | ✓ | v0.6.3+: on-screen child switcher; single «افزودن به {نام}» action. Re-adding an already-assigned routine resets its ownership stage — see §10 CRACK-6 |
 | Rewards: create (cost, self-service / parent-confirmed) | ✓ | — | ✓ | ✓ | ✓ | |
 | Ownership: set stage per (child, quest); suggestions accept/dismiss | ✓ | — | ✓ | ✓ | ✓ | 4 stages parent-facing only (INV-8) |
 | Children section (list; add child) | ✓ | — | ✓ | ✓ | ✓ | v0.6.2 dropped the per-child "activate on device" toggle |
@@ -642,6 +652,27 @@ Losing them means no signed upgrade for any installed APK (a fresh key = a new
 app identity / reinstall). The owner must back this up. Recorded in
 `android/RELEASE.md` and the project memory; restated here.
 
+### CRACK-6 — `assign_quest` resets ownership progress on re-assign — **POSSIBLE DEFECT / PO DECISION**
+
+`QuestGrowService.assign_quest` (`src/questgrow/service.py`) unconditionally
+writes a fresh `ChildQuest(ownership_stage=default_for_age, consecutive_ok_count=0,
+assigned_at=now)`. Calling it again for a `(child, quest)` that is **already
+assigned** silently discards the child's current ownership stage and progress
+count. Nothing in the docs says re-assignment should reset progress
+(DECISION-017 / INV-2 treat the stage as parent-controlled and durable).
+
+- **Android exposure:** the parent Routines screen shows the "add" action for
+  every starter regardless of whether it is already on the selected child's day
+  (the client only knows the routine exists on the *account*, not the
+  per-child assignment). A stray second tap resets that child's progress on
+  that routine. The 2026-08-31 pass made the target child explicit but did
+  **not** change this — the client would need per-child assignment data to
+  guard it, and the reset itself is a backend-semantics question.
+- **Recommended fix (needs owner sign-off):** make `assign_quest` idempotent —
+  if a `ChildQuest` row already exists, keep its stage/count and return it
+  unchanged (or expose an explicit "reset this routine" action). Small,
+  well-scoped once decided. → §11.
+
 ### CRACK-5 — stale code/doc comments (fixed in this pass)
 
 `android/README.md` "Shape (Phase L)" section, its offline description, and the
@@ -676,7 +707,11 @@ said "DECISION-001…019" and "Phase G". Corrected in the same commit as this fi
    owner ever wants to ship an upgrade to an installed APK.
 4. **Parent-token TTL of 12h** — already the owner's decision; flagged here so
    it is on the record as a deliberate trade-off, not a default left unset.
-5. **AvaCore package name after the PlayFoundryHQ migration** — if it changes,
+5. **`assign_quest` idempotency (CRACK-6).** Should re-adding an
+   already-assigned routine to a child be a no-op that preserves ownership
+   progress (recommended), or should "reset this routine" be a separate explicit
+   action? Currently a silent reset. Needs an owner call before the fix lands.
+6. **AvaCore package name after the PlayFoundryHQ migration** — if it changes,
    the explicit `<package>` in the manifest needs a one-line update (tell the
    dev agent; the generic query still works either way).
 
@@ -849,12 +884,27 @@ ArvanCloud edge.
 
 ## 18. Files changed by this reconciliation
 
-See §"FILES CHANGED" in the phase report / `git show` of the commit that adds
-this file. This phase makes **documentation-only** changes:
+The **reconciliation** commits (`80449ec`, `1cbea77`) were documentation-only:
 `docs/PROJECT_STATE.md` (new, this file), plus corrections to
 `android/README.md`, `docs/README.md`, and one code comment
-(`src/questgrow/migrations/0002_auth_and_events.sql`). No behavioural code
-change; the backend and Android test suites pass unchanged.
+(`src/questgrow/migrations/0002_auth_and_events.sql`).
+
+The **2026-08-31 UX/terminology audit** additionally changed:
+- `android/app/src/main/res/values/strings.xml` — routines block reworked:
+  removed `routine_add`, `routine_title`, `routine_icon`, `routine_points`,
+  `routine_recurrence`, `routine_assign_title`, `routine_create`,
+  `routine_assign` (six were dead — a custom-routine form that was never built —
+  and the two action labels are replaced); added `routine_pick_child`,
+  `routine_starters_sub`, `routine_add_to_child`, `routine_add_plain`,
+  `routines_family`, `routines_family_sub`; `routines_empty` reworded.
+- `android/app/src/main/java/hq/playfoundry/questgrow/ui/parent/ParentFlow.kt` —
+  `Routines()` gains an on-screen child switcher (shown when ≥2 children), a
+  target-child hint, one `«افزودن به {نام}»` action for both the create+add and
+  add-only paths, and the second section header renamed
+  `nav_routines` → `routines_family` with a subtitle.
+
+No domain / API / data-model change. Backend suites unchanged (60/8 + 116/1);
+Android unit 24 + `lintVitalRelease` pass; instrumented not run (no emulator).
 
 ---
 
@@ -916,7 +966,8 @@ This file does not erase or rewrite prior phase reports. The history stands:
 | `v0.6.1` (`a2f36be`) — sign-in recovery | commit | current |
 | `v0.6.2` (`f80e7ee`) — shared-phone auto-sync of all children | commit | current |
 | `v0.6.3` (`23338ea`) — TTS `<queries>` + container-leak fix | commit | current |
-| This reconciliation (`docs/PROJECT_STATE.md`) | this file | the current-state index |
+| Reconciliation (`80449ec`, `1cbea77`) — `docs/PROJECT_STATE.md` | this file | the current-state index |
+| 2026-08-31 UX/terminology audit — parent Routines screen clarity | this file §10/§11/§18, `strings.xml`, `ParentFlow.kt` | current |
 
 Current truth = this file + the code at `HEAD`. Historical truth = the phase
 reports, unchanged.

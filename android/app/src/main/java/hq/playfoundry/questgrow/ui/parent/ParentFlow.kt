@@ -83,7 +83,7 @@ fun ParentFlow(container: AppContainer, onExit: () -> Unit) {
         }
         when (section) {
             Section.Home -> Home(vm, s, selectedChild, { selectedChild = it }) { section = it }
-            Section.Routines -> Routines(vm, s, selectedChild)
+            Section.Routines -> Routines(vm, s, selectedChild) { selectedChild = it }
             Section.Rewards -> Rewards(vm, s)
             Section.Ownership -> Ownership(vm, s, selectedChild)
             Section.Children -> Children(vm, s)
@@ -258,25 +258,44 @@ private fun ApprovalCard(a: Approval, title: String, onDecide: (Boolean) -> Unit
 // -------------------------------------------------------------- sections ---
 
 @Composable
-private fun Routines(vm: ParentViewModel, s: ParentState, childId: String?) {
+private fun Routines(vm: ParentViewModel, s: ParentState, childId: String?, onPickChild: (String) -> Unit) {
+    val kids = s.children
+    val activeName = kids.firstOrNull { it.childId == childId }?.name ?: ""
+
+    // On a shared family phone the parent must see which child a routine is being
+    // added to — the switcher above the list is the same identity used by every
+    // action on this screen.
+    if (kids.size > 1) {
+        SectionHeader(stringResource(R.string.routine_pick_child))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+        ) {
+            kids.forEach { k ->
+                SelectPill(k.name, selected = k.childId == childId) { onPickChild(k.childId) }
+            }
+        }
+    }
+
     SectionHeader(stringResource(R.string.routine_starters))
+    if (activeName.isNotEmpty()) HintText(stringResource(R.string.routine_starters_sub, activeName))
     val existing = (s.quests.valueOrNull ?: emptyList()).map { it.questId }.toSet()
+    val addLabel =
+        if (activeName.isEmpty()) stringResource(R.string.routine_add_plain)
+        else stringResource(R.string.routine_add_to_child, activeName)
     STARTERS.forEach { st ->
         val added = st.id in existing
         Row(Modifier.fillMaxWidth().padding(vertical = Space.xs), verticalAlignment = Alignment.CenterVertically) {
             Text("${st.icon}  ${st.title}", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            if (added) {
-                childId?.let { SecondaryButton(stringResource(R.string.routine_assign)) { vm.assign(it, st.id) } }
-            } else {
-                SecondaryButton(stringResource(R.string.routine_create)) {
-                    vm.createQuest(st.id, st.title, st.icon, st.points, "daily")
-                    childId?.let { vm.assign(it, st.id) }
-                }
+            SecondaryButton(addLabel) {
+                if (!added) vm.createQuest(st.id, st.title, st.icon, st.points, "daily")
+                childId?.let { vm.assign(it, st.id) }
             }
         }
     }
     HorizontalDivider(Modifier.padding(vertical = Space.sm))
-    SectionHeader(stringResource(R.string.nav_routines))
+    SectionHeader(stringResource(R.string.routines_family))
+    HintText(stringResource(R.string.routines_family_sub))
     when (val q = s.quests) {
         is Loadable.Loaded -> if (q.value.isEmpty()) HintText(stringResource(R.string.routines_empty))
         else q.value.forEach { Text("${it.icon}  ${it.title}  (${it.points.fa()})", Modifier.padding(vertical = 2.dp)) }
