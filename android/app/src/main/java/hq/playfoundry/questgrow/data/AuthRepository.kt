@@ -20,6 +20,9 @@ class AuthRepository(
     private val api: QuestGrowApi,
     private val tokens: TokenStore,
     private val onForget: () -> Unit = {},
+    /** invoked with a childId when that child is dropped from this device
+     *  (account no longer lists them) — lets the caller clear per-child local state. */
+    private val onChildRemoved: (String) -> Unit = {},
 ) {
     fun isOnboarded(): Boolean = tokens.accountEmailBlocking() != null
 
@@ -120,7 +123,7 @@ class AuthRepository(
                 tokens.putChildToken(k.childId, k.name, it.value, makeActive = false)
             }
         }
-        for (id in have - want.keys) tokens.removeChildToken(id)
+        for (id in have - want.keys) { tokens.removeChildToken(id); onChildRemoved(id) }
         if (tokens.activeChildIdBlocking().let { it == null || it !in want }) {
             kids.firstOrNull()?.let { tokens.setActiveChild(it.childId) }
         }

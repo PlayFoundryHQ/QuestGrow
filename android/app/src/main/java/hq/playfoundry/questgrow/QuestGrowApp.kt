@@ -69,8 +69,15 @@ class AppContainer(context: Context) {
     private val queue: OfflineQueue = FileOfflineQueue(File(context.filesDir, "questgrow/offline_queue.json"))
     val readCache = ReadCache(File(context.filesDir, "questgrow/cache"))
 
-    val authRepo = AuthRepository(api, tokenStore, onForget = { readCache.clear() })
-    val childRepo = ChildRepository(api, queue, readCache)
+    val childRepo = ChildRepository(
+        api, queue, readCache,
+        activeChildId = { tokenStore.activeChildIdBlocking() },
+    )
+    val authRepo = AuthRepository(
+        api, tokenStore,
+        onForget = { readCache.clear() },
+        onChildRemoved = { id -> childRepo.forgetChild(id) },
+    )
     val parentRepo = ParentRepository(api)
 
     /** true when the device currently has validated internet. */

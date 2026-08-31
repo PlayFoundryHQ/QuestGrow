@@ -95,8 +95,8 @@ Each row: **1** implemented in code · **2** covered by an automated test · **3
 | Children section (list; add child) | ✓ | — | ✓ | ✓ | ✓ | v0.6.2 dropped the per-child "activate on device" toggle |
 | Settings: notifications toggle, child pairing code, **صدای فارسی (TTS status)**, backend URL, sign-out, forget device | ✓ | — | ✓ | ✓ | ✓ | TTS status row added v0.6.3 |
 | Backend-URL change + clean relaunch | ✓ | ✓ (`ApiContractTest` retarget) | ✓ | — (this session) | ✓ | `restartApp()` — `NEW_TASK|CLEAR_TASK` + `exit(0)` |
-| Offline read cache (last board + progress, "stale" banner) | ✓ | ✓ (`OfflineCacheTest`) | ✓ | — | ✓ | **single-slot — see §10 CRACK-1** |
-| Offline write queue ("I did it" offline → flush on reconnect) | ✓ | ✓ (`OfflineAndSyncTest`) | ✓ | — | ✓ | 409 on replay = "already resolved", dropped (INV-11). **No childId — see §10 CRACK-1** |
+| Offline read cache (last board + progress, "stale" banner) | ✓ | ✓ (`OfflineCacheTest`) | ✓ | ✓ (emulator suite) | ✓ | **per-child since 2026-08-31 — §10 CRACK-1 fixed** |
+| Offline write queue ("I did it" offline → flush on reconnect) | ✓ | ✓ (`OfflineAndSyncTest`, `ChildRepositoryMultiChildTest`) | ✓ | ✓ (emulator suite) | ✓ | 409 on replay = "already resolved", dropped (INV-11). **`childId`-scoped since 2026-08-31 — §10 CRACK-1 fixed** |
 | Persian-only, RTL, Persian digits, Vazirmatn | ✓ | ✓ (INV-8 string scan) | ✓ | ✓ | ✓ | DECISION-020; forced `fa` regardless of device locale |
 | Dark mode | ✓ | — | ✓ | ✓ (earlier physical-device, dark) | ✓ | `isSystemInDarkTheme()`; full light/dark M3 palette |
 | Loading / Empty / Error+Retry states | ✓ | ✓ (`Loadable`) | ✓ | ✓ | ✓ | |
@@ -267,7 +267,7 @@ Nothing product-authoritative is computed on the device.
 | Area | Original intent | Actual | Class |
 |---|---|---|---|
 | Client surface | Two reference web clients (`/app/child`, `/app/parent`), English | Native Android (Kotlin/Compose), Persian/RTL, is the product surface; web clients kept as a QA/contract tool only | **Intentional product evolution** (DECISION-020; Phases G–M) |
-| Identity on device | "a child device holds one child token" (README, ReadCache comment) | family device holds **many** child tokens + an active pointer; switches between children | **Intentional product evolution** (DECISION-021 / Phase M / v0.6.2) — but the offline layer did not follow (see §10 CRACK-1) |
+| Identity on device | "a child device holds one child token" (README, ReadCache comment) | family device holds **many** child tokens + an active pointer; switches between children | **Intentional product evolution** (DECISION-021 / Phase M / v0.6.2) — the offline layer followed on 2026-08-31 (§10 CRACK-1 fixed) |
 | API path versioning | flagged in E_READINESS as "minor additive before a public client ships" | done — every route at `/` **and** `/v1/`; client pins `/v1` | Intentional |
 | Multi-family production | Postgres + pooling + migrations ("post-D1") | code supports it; **deployed on SQLite** (single family, proportionate) | Intentional (deferred), documented |
 | Parent-token TTL | 900s default = "the re-challenge cadence" | deployed at **43200s (12h)** via `values-nuc-lab.yaml` | Intentional operational tuning (auth-policy note); **not** a decision change |
@@ -331,8 +331,8 @@ Nothing product-authoritative is computed on the device.
 | child token(s) | device, per child | DataStore map |
 | `active_child_id` | device | which board shows |
 | parent token | device (transient) | cleared on 401 / sign-out |
-| **offline read cache** (`today.json`, `progress.json`) | **device — single slot, NOT per child** | ⚠ CRACK-1 (§10) |
-| **offline write queue** | **device — single file, entries carry no `child_id`** | ⚠ CRACK-1 (§10) |
+| **offline read cache** (`today-<child>.json`, `progress-<child>.json`) | **device — per child** | §10 CRACK-1 fixed 2026-08-31 |
+| **offline write queue** | **device — single file; each entry carries its `childId`; flushed only for the active child** | §10 CRACK-1 fixed 2026-08-31 |
 | server data (quests/ledger/approvals/…) | account (parent) / child (child) | enforced server-side |
 
 ### What survives what
@@ -355,12 +355,10 @@ Nothing product-authoritative is computed on the device.
   session: a parent request naming another account's child → `not_authorized`.
 - **Android, online:** no leakage — every screen fetches fresh with the active
   identity's token.
-- **Android, offline + multi-child:** **CRACK-1** — the single-slot cache and
-  child-unaware queue mean switching children while offline shows the previous
-  child's cached board (flagged "stale" but the payload is the other child's),
-  and a completion queued for child A then flushed after switching the active
-  child to B replays against B's token. Online (the normal case) is unaffected.
-  See §10.
+- **Android, offline + multi-child:** no leakage since 2026-08-31 (**CRACK-1
+  fixed**, §10) — the read cache is keyed per child and only serves a board
+  whose `child_id` matches the active child; queued completions carry their
+  `childId` and are flushed only while that child is the active board.
 
 ---
 
@@ -532,7 +530,7 @@ No GitHub Actions. Local build → GHCR → tag → Release → ops PR → ArgoC
 
 | Suite | Command | Result |
 |---|---|---|
-| unit (JVM) | `./gradlew :app:testDebugUnitTest` | **24 passed** (5 files: `ApiContractTest`, `ComplexityProfileTest`, `DtoSerializationTest`, `OfflineAndSyncTest`, `OfflineCacheTest`) |
+| unit (JVM) | `./gradlew :app:testDebugUnitTest` | **27 passed** (5 files: `ApiContractTest`, `ComplexityProfileTest`, `DtoSerializationTest`, `OfflineAndSyncTest` incl. `ChildRepositoryMultiChildTest` ×3, `OfflineCacheTest`) |
 | lint (release-gating) | `./gradlew :app:lintVitalRelease` | **pass** (`lint-results-debug`: 0 errors, 75 warnings — non-blocking: unused resources, etc.) |
 | instrumented (needs emulator/device) | `./gradlew :app:connectedDebugAndroidTest` | **12 passed** — `AppFlowTest` ×9 + `TokenStoreTest` ×3. Run green **twice in a row** this session on the HEAD tree after the v0.6.3 container-leak fix (previously flaky: `kidBoard_rewards_redeem_asksGrownup` — root cause was leaked `ConnectivityManager` callbacks hammering MockWebServer; fixed by `AppContainer.close()`). |
 
@@ -572,14 +570,13 @@ No GitHub Actions. Local build → GHCR → tag → Release → ops PR → ArgoC
 | Secrets in the cluster | none (public packages, SQLite, no imagePullSecret). ArgoCD `Repository` secret has no credential. | **VERIFIED** |
 | Child PII | first name + coarse age band + optional coarse `birthdate`. No photos, no last name, no contact info. Auth PII = the parent's email. | **VERIFIED / LOW RISK** |
 | Logging | backend: uvicorn access log (paths, status — no bodies, no tokens). Android: `QG.Narrator` logs the engine name + `setLanguage` result (no PII). Passing the raw child token in a URL for debugging was a one-off the owner did while debugging — not a code path. | **LOW RISK** |
-| Local caches / offline queue | plaintext JSON in app-private storage (`/data/data/<pkg>/files/`). App-private; excluded from backup/transfer. **Not per-identity scoped** (CRACK-1). | **TECHNICAL DEBT** (the scoping) / LOW RISK (the plaintext — app-private, backup-excluded) |
+| Local caches / offline queue | plaintext JSON in app-private storage (`/data/data/<pkg>/files/`). App-private; excluded from backup/transfer. **`childId`-scoped** since 2026-08-31 (CRACK-1 fixed). | **LOW RISK** (plaintext — app-private, backup-excluded) |
 | Debug vs release | debug: `.debug` appId, dev backend default, `isMinifyEnabled=false`, permissive network config. release: R8 + resource shrink, live backend default, HTTPS-enforced, signed. Only the release APK is distributed. | **VERIFIED** |
 | Signing keystore | `CN=QuestGrow,O=PlayFoundryHQ,C=IR`, on the build machine at `/home/iceman/questgrow-release.jks` with creds in `/home/iceman/questgrow-keystore.creds`. **Not in any repo.** `android/keystore.properties` (gitignored) points at it; absent → the build falls back to the debug key. | **PRODUCT OWNER DECISION REQUIRED** — this is a single point of loss; the owner must back it up (losing it means no upgrade path for installed APKs). |
 
-No **POSSIBLE SECURITY ISSUE** class findings. The offline-queue mis-attribution
-(CRACK-1) is a **correctness** defect, not a privacy breach (it can lose or
-mis-file a completion between two of the same parent's children; it cannot
-cross accounts).
+No **POSSIBLE SECURITY ISSUE** class findings. The former offline-queue
+mis-attribution (CRACK-1) — a correctness defect, never a privacy breach — is
+fixed (2026-08-31): cache and queue are `childId`-scoped.
 
 ---
 
@@ -600,7 +597,7 @@ cross accounts).
 | Family device holds multiple children; kid spends points in-app | DECISION-021 | multi-child `TokenStore`; kid rewards screen; parent redemption inbox | **MATCH** (implementation went further — v0.6.2 auto-sync, no "activate" step) |
 | Auth: static email/password + PIN, no OIDC, no refresh, no payment | auth-policy note; `E_READINESS` addendum; `ARCHITECTURE.md` | exactly as built | **MATCH** |
 | **Android README "Shape (Phase L)" section** | describes the L-era parent home ("each child's day in a line + approvals inbox") and the L-era gate ("'بزرگترها ›' text button") | v0.6 redesigned the parent home into a card hub; the gate is a pill in the board header; multi-child + sign-in recovery + TTS status added | **OBSOLETE DOCUMENTATION** → fixed in this pass (§12) |
-| **Android README offline section** | "A child device holds one child token, so this is single-slot" | family device is multi-child since v0.5.0; the offline layer is still single-slot | **IMPLEMENTATION DIFFERED FROM DESIGN** → CRACK-1; README note added |
+| Android README offline section | multi-child offline behaviour | cache + queue `childId`-scoped (2026-08-31) | **MATCH** — README updated, CRACK-1 fixed |
 | **`migrations/0002_auth_and_events.sql` comment** | "kind ∈ {session, parent, child}" | a fourth kind, `pair`, was added in Phase M | **OBSOLETE DOCUMENTATION** (code comment) → fixed in this pass |
 | **`docs/README.md` document map** | "DECISION-001 … DECISION-019" (×2); "Phase G (native Android client)" | 21 decisions; L/M/v0.6.x all shipped | **STALE DOCUMENTATION** → fixed in this pass |
 | `E_READINESS.md` addendum | "Remaining to close out the MVP … deployment … release tooling … signed APK … light security/ops … hands-on a11y" | deployment + release tooling + signed APK **done**; Phases L/M/v0.6 shipped on top; a11y/airplane-mode still hands-on-pending | **PARTIALLY IMPLEMENTED** (doc predates K/L/M) — superseded by this file; not rewritten (historical) |
@@ -614,30 +611,32 @@ No **DOCUMENTED BUT NOT IMPLEMENTED** findings against a decision or invariant.
 
 ## 10. Cracks / gaps
 
-### CRACK-1 — the offline layer is not multi-child-aware — **POSSIBLE DEFECT**
+### CRACK-1 — the offline layer was not multi-child-aware — **FIXED 2026-08-31**
 
-`ReadCache` (`today.json` / `progress.json`) and `OfflineQueue`
-(`PendingCompletion` has `questId`, `day`, `note`, `enqueuedAt` — **no
-`childId`**) are single-slot, from the Phase G–J design when a device held one
-child. Since **v0.5.0** the family device holds many children and switches
-between them.
+`ReadCache` and `OfflineQueue` were single-slot, from the Phase G–J design when
+a device held one child. Since v0.5.0 the family device holds many children.
+The two symptoms were: (1) switching the active child while offline showed the
+*previous* child's cached board (flagged stale, but the wrong child's payload);
+(2) a completion queued for child A then flushed after switching to B replayed
+against **B's** token — recorded for B, or 404-dropped and **lost**. Online was
+unaffected; it could not cross accounts (correctness, not privacy).
 
-- **Offline kid-switch:** switching the active child while offline shows the
-  *previous* child's cached board, flagged "stale" — but the payload
-  (`child_id`, quest titles, points) is the other child's. Misleading.
-- **Offline completion then switch:** a "I did it" queued for child A, then the
-  active child switched to B, then reconnect → `flushQueue()` replays
-  `POST /v1/me/quests/{questId}/complete` with **B's** token. If B has that
-  quest scheduled today → the completion is recorded for **B** (wrong child).
-  If not → 404 → the item is silently dropped (`flushQueue` drops 4xx that
-  isn't auth-expired) → **A's completion is lost**.
-- Online (the normal state of a family phone) is unaffected.
-- Cannot cross accounts — both children belong to the same parent. Not a
-  privacy issue; a data-correctness issue.
+**Fix (Android, `data/local` + `ChildRepository`):**
+- `PendingCompletion` carries `childId`; dedup key is `(childId, questId, day)`.
+- `ReadCache` is keyed per child — files `today-<slot>.json` /
+  `progress-<slot>.json`; an offline read only returns a board whose `child_id`
+  matches the active child.
+- `flushQueue()` replays **only the active child's** entries (the attached
+  bearer token is theirs); another child's intents wait until that child is the
+  active board. `pendingCount()` is per active child.
+- `AuthRepository.onChildRemoved` → `ChildRepository.forgetChild(id)` clears a
+  child's cached board + queued intents when the account drops them.
+- Legacy (id-less) entries and the single-child paired-device path are
+  preserved (blank `childId` matches whoever is active).
 
-**Not fixed in this reconciliation phase** (scope is documentation). A fix
-would key the cache and the queue by `child_id`, and clear a child's slot when
-its token is dropped. → §11.
+Tests: `OfflineAndSyncTest.ChildRepositoryMultiChildTest` ×3 (per-child offline
+board, per-child flush isolation, `forgetChild`). Not a schema or API change —
+Android-only; ships with the next client release.
 
 ### CRACK-2 — live deployment version label lags the code — **LOW / cosmetic**
 
@@ -703,17 +702,13 @@ said "DECISION-001…019" and "Phase G". Corrected in the same commit as this fi
 
 ## 11. Open product-owner decisions
 
-1. **CRACK-1 (offline multi-child scoping).** Fixing it is engineering, not a
-   product decision — but *whether it's worth fixing now* is the owner's call
-   (it only bites offline on a shared phone, a narrow window). If yes, it is a
-   small, well-scoped change (key cache + queue by `child_id`).
-2. **Merge ops PRs #75 / #76** to align the live version label with the code
+1. **Merge ops PRs #75 / #76** to align the live version label with the code
    (no behaviour change).
-3. **Back up the Android signing keystore** (CRACK-4). Not optional if the
+2. **Back up the Android signing keystore** (CRACK-4). Not optional if the
    owner ever wants to ship an upgrade to an installed APK.
-4. **Parent-token TTL of 12h** — already the owner's decision; flagged here so
+3. **Parent-token TTL of 12h** — already the owner's decision; flagged here so
    it is on the record as a deliberate trade-off, not a default left unset.
-5. **AvaCore package name after the PlayFoundryHQ migration** — if it changes,
+4. **AvaCore package name after the PlayFoundryHQ migration** — if it changes,
    the explicit `<package>` in the manifest needs a one-line update (tell the
    dev agent; the generic query still works either way).
 
@@ -728,7 +723,6 @@ scope, and nothing in this reconciliation changes it.
 
 **Deferred (named, not built):**
 
-- Offline multi-child cache/queue scoping (CRACK-1).
 - Hands-on accessibility verification: live TalkBack swipe-traversal, real
   airplane-mode cycle on a physical device, on-device font-scale toggle (test
   phone denies `WRITE_SECURE_SETTINGS`).
@@ -795,7 +789,7 @@ simplification proportionate to a personal project.
 ## 15. Known limitations
 
 - One account per Android device (many children per account).
-- Offline layer is not multi-child-scoped (CRACK-1).
+- Offline layer is `childId`-scoped (CRACK-1 fixed 2026-08-31).
 - No push / real-time; poll only.
 - Backend on SQLite, single replica, `Recreate` rollout — single-family scale.
 - No end-to-end TLS to the backend origin (ArvanCloud edge terminates).
@@ -916,6 +910,11 @@ The **2026-08-31 post-audit reconciliation** additionally changed:
 Backend suites: **61 passed / 8 skipped** stdlib, **117 passed / 1 skipped** venv
 (both +1). Instrumented Android not run (no emulator).
 
+**CRACK-1 fixed (same day)** — the offline read cache and write queue are now
+`childId`-scoped (see §10). Android-only; 3 new unit tests. The full instrumented
+suite (**12/12**, emulator) and unit suite (**27/27**) pass on the resulting
+tree.
+
 Follow-up cleanup (same day): removed the dead Android **seed-starters** chain
 (`ParentViewModel.seedStarters`, `ParentRepository.seedStarters`,
 `QuestGrowApi.seedStarters`) — the Persian client creates starters individually
@@ -958,7 +957,7 @@ curl -s https://questgrow.opscale.ir/openapi.json | grep -i "ownership_stage\|re
 grep -rn "ownership_stage\|readiness\|streak" android/app/src/main/java/hq/playfoundry/questgrow/data/model/   # nothing
 
 # 6. the two open cracks
-#    CRACK-1: android/app/.../data/local/ReadCache.kt + OfflineQueue.kt  (single-slot, no childId)
+#    CRACK-1: FIXED 2026-08-31 — ReadCache + OfflineQueue are childId-scoped
 #    CRACK-2: image 0.6.1 vs code 0.6.3  (client-only releases in between)
 ```
 
@@ -981,7 +980,7 @@ This file does not erase or rewrite prior phase reports. The history stands:
 | Phase K (deploy + release tooling + APK) | `deploy/`, `scripts/`, project memory | current; live at `questgrow.opscale.ir` |
 | Phase L (Persian/RTL kid-first rewrite) — `6d476d8`…`1ed5d2f`, `v0.4.0` | commits, `DECISION-020`, `android/README.md` | current, then superseded by v0.6 design pass |
 | `v0.4.1` (`25db88d`) — visible parent gate | commit | current |
-| Phase M (`718dc62`, `v0.5.0`) — multi-child family device + in-app rewards | commit, `DECISION-021`, `test_rewards_inbox.py` | current — the origin of CRACK-1 |
+| Phase M (`718dc62`, `v0.5.0`) — multi-child family device + in-app rewards | commit, `DECISION-021`, `test_rewards_inbox.py` | current — was the origin of CRACK-1 (fixed 2026-08-31) |
 | `v0.6.0` (`5fcfde0`+`65d699a`+`bbc85d5`) — full UI/UX design pass | commits, `android/README.md` design-system note | current |
 | `v0.6.1` (`a2f36be`) — sign-in recovery | commit | current |
 | `v0.6.2` (`f80e7ee`) — shared-phone auto-sync of all children | commit | current |
@@ -989,6 +988,7 @@ This file does not erase or rewrite prior phase reports. The history stands:
 | Reconciliation (`80449ec`, `1cbea77`) — `docs/PROJECT_STATE.md` | this file | the current-state index |
 | 2026-08-31 UX/terminology audit — parent Routines screen clarity | this file §10/§11/§18, `strings.xml`, `ParentFlow.kt` | current |
 | 2026-08-31 post-audit reconciliation — `assign_quest` idempotency (CRACK-6 fix) | this file §2/§9/§10/§18, `service.py`, `test_invariants.py` | current |
+| 2026-08-31 autonomous phase — offline layer `childId`-scoped (CRACK-1 fix) | this file §2/§4/§8/§10/§11/§15, `android/README.md`, `data/local/ReadCache.kt`, `data/local/OfflineQueue.kt`, `data/ChildRepository.kt`, `data/AuthRepository.kt`, `QuestGrowApp.kt`, `OfflineAndSyncTest.kt`, `OfflineCacheTest.kt` | current |
 
 Current truth = this file + the code at `HEAD`. Historical truth = the phase
 reports, unchanged.

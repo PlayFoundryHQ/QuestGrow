@@ -79,7 +79,7 @@ class OfflineCacheTest {
         val r = repo.today("2026-08-03") as ApiResult.Ok
         assertFalse(r.value.stale)
         assertEquals(55, r.value.lifetimeAchievement)
-        assertEquals(55, cache.getToday()!!.lifetimeAchievement)
+        assertEquals(55, cache.getToday(null)!!.lifetimeAchievement)
     }
 
     @Test fun `progress is cached and served stale offline`() = runTest {

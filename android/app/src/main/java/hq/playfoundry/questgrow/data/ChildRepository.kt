@@ -25,10 +25,19 @@ class ChildRepository(
     private val api: QuestGrowApi,
     private val queue: OfflineQueue,
     private val cache: ReadCache? = null,
+    /** which child the board currently shows — cache + queue are scoped to it
+     *  (DECISION-021). `null` on a single-child paired device. */
+    private val activeChildId: () -> String? = { null },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
+    /** A queue entry belongs to the active child, or is a legacy (id-less) entry. */
+    private fun mine(entryChildId: String): Boolean =
+        entryChildId.isBlank() || entryChildId == activeChildId()
+
     private fun mapToday(d: TodayDto, day: String, stale: Boolean): TodayView {
-        val queuedIds = queue.all().filter { it.day == day }.map { it.questId }.toSet()
+        val queuedIds = queue.all()
+            .filter { it.day == day && (it.childId.isBlank() || it.childId == d.childId) }
+            .map { it.questId }.toSet()
         return TodayView(
             childId = d.childId,
             onDate = d.onDate,
@@ -56,11 +65,12 @@ class ChildRepository(
     suspend fun today(day: String): ApiResult<TodayView> =
         when (val r = apiCall { api.today(day) }) {
             is ApiResult.Ok -> {
-                cache?.putToday(r.value)
+                cache?.putToday(activeChildId(), r.value)
                 ApiResult.Ok(mapToday(r.value, day, stale = false))
             }
             is ApiResult.Failure -> r
-            is ApiResult.Offline -> cache?.getToday()
+            is ApiResult.Offline -> cache?.getToday(activeChildId())
+                ?.takeIf { activeChildId() == null || it.childId == activeChildId() }
                 ?.let { ApiResult.Ok(mapToday(it, day, stale = true)) }
                 ?: r
         }
@@ -72,24 +82,25 @@ class ChildRepository(
      * drop any queued copy, do **not** surface an error (INV-11).
      */
     suspend fun complete(questId: String, day: String, note: String = ""): CompletionOutcome {
+        val cid = activeChildId() ?: ""
         return when (val r = apiCall { api.complete(questId, NotYetBody(day, note)) }) {
             is ApiResult.Ok -> {
-                queue.remove(PendingCompletion(questId, day))
+                queue.remove(PendingCompletion(questId, day, childId = cid))
                 if (r.value.state == "verified") CompletionOutcome.Verified
                 else CompletionOutcome.WaitingForGrownup
             }
             is ApiResult.Offline -> {
-                queue.enqueue(PendingCompletion(questId, day, note, now()))
+                queue.enqueue(PendingCompletion(questId, day, note, now(), cid))
                 CompletionOutcome.QueuedOffline
             }
             is ApiResult.Failure -> when {
                 r.isConflict -> {
-                    queue.remove(PendingCompletion(questId, day))
+                    queue.remove(PendingCompletion(questId, day, childId = cid))
                     // already processed server-side — not a failure
                     CompletionOutcome.WaitingForGrownup
                 }
                 r.status >= 500 -> {
-                    queue.enqueue(PendingCompletion(questId, day, note, now()))
+                    queue.enqueue(PendingCompletion(questId, day, note, now(), cid))
                     CompletionOutcome.QueuedOffline
                 }
                 else -> CompletionOutcome.Rejected(r.code, r.detail)
@@ -103,7 +114,9 @@ class ChildRepository(
      */
     suspend fun flushQueue(): Int {
         var cleared = 0
-        for (item in queue.all()) {
+        // only the active child's entries — the attached bearer token is theirs;
+        // another child's intents wait until that child is the active board.
+        for (item in queue.all().filter { mine(it.childId) }) {
             when (val r = apiCall { api.complete(item.questId, NotYetBody(item.day, item.note)) }) {
                 is ApiResult.Ok -> { queue.remove(item); cleared++ }
                 is ApiResult.Failure -> if (r.isConflict || (r.status in 400..499 && !r.isAuthExpired)) {
@@ -115,7 +128,14 @@ class ChildRepository(
         return cleared
     }
 
-    fun pendingCount(): Int = queue.size()
+    /** Pending intents for the child the board currently shows. */
+    fun pendingCount(): Int = queue.all().count { mine(it.childId) }
+
+    /** The child left this device — drop their cached board + queued intents. */
+    fun forgetChild(childId: String) {
+        queue.removeAllFor(childId)
+        cache?.forgetChild(childId)
+    }
 
     suspend fun celebrations(since: String?): ApiResult<List<Celebration>> =
         apiCall { api.celebrations(since?.takeIf { it.isNotBlank() }) }.let { r ->
@@ -133,11 +153,12 @@ class ChildRepository(
     suspend fun progress(weekStart: String): ApiResult<ChildProgress> =
         when (val r = apiCall { api.progress(weekStart) }) {
             is ApiResult.Ok -> {
-                cache?.putProgress(r.value)
+                cache?.putProgress(activeChildId(), r.value)
                 ApiResult.Ok(ChildProgress(r.value.lifetimeAchievement, r.value.spendableBalance, r.value.weekActiveDays))
             }
             is ApiResult.Failure -> r
-            is ApiResult.Offline -> cache?.getProgress()
+            is ApiResult.Offline -> cache?.getProgress(activeChildId())
+                ?.takeIf { activeChildId() == null || it.childId == activeChildId() }
                 ?.let { ApiResult.Ok(ChildProgress(it.lifetimeAchievement, it.spendableBalance, it.weekActiveDays, stale = true)) }
                 ?: r
         }

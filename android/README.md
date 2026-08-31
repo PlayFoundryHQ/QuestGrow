@@ -224,24 +224,26 @@ device UI. Font scale 1.5×/2.0× is covered on the emulator.
 ## Offline behaviour
 
 - **Read cache** (`ReadCache`): the last successful child *Today* board and
-  *Progress* are cached on disk. Opened cold with no network → the cached
-  board is shown with a **"📴 offline — showing your last board"** banner
-  (`stale = true`). A fresh success overwrites the cache and clears the flag;
-  a `4xx` is never served from the cache. Cleared on "forget this device".
+  *Progress* are cached on disk, **keyed per child** (`today-<child>.json` /
+  `progress-<child>.json`). Opened cold with no network → the active child's
+  cached board is shown with a **"📴 offline — showing your last board"** banner
+  (`stale = true`); a board whose `child_id` doesn't match the active child is
+  never served. A fresh success overwrites the cache and clears the flag; a
+  `4xx` is never served from the cache. Cleared on "forget this device", and a
+  single child's slot is cleared when the account drops that child.
 - **Write queue** (`OfflineQueue`): "I did it" tapped offline (or on a `5xx`)
-  is queued and flushed on reconnect; a `409` on replay means "already
-  resolved" → dropped, not surfaced as an error (INV-11). Verified end to end
-  on device (debug): offline "I did it" → queued → reconnect → synced →
-  appears in the parent approvals queue.
+  is queued **with the child's id** and flushed on reconnect; a `409` on replay
+  means "already resolved" → dropped, not surfaced as an error (INV-11).
+  `flushQueue()` replays **only the active child's** entries — another child's
+  intents wait until that child is the active board — so switching children
+  never re-attributes a pending completion. Verified end to end on device
+  (debug): offline "I did it" → queued → reconnect → synced → appears in the
+  parent approvals queue.
 
-> **Known gap (multi-child):** `ReadCache` and `OfflineQueue` are **single-slot
-> and not scoped by `child_id`** — a design carried over from Phase G–J when a
-> device held one child. On the family device (multi-child since v0.5.0),
-> switching children *while offline* shows the previous child's cached board
-> (flagged "stale", but the payload is the other child's), and a completion
-> queued for one child then flushed after switching the active child replays
-> against the wrong child's token. Online — the normal case — is unaffected.
-> Tracked in [`../docs/PROJECT_STATE.md` §10 CRACK-1](../docs/PROJECT_STATE.md#10-cracks--gaps).
+> **Multi-child (DECISION-021):** the cache and queue are `childId`-scoped
+> (fixed 2026-08-31 — was §10 CRACK-1). Legacy id-less entries and the
+> single-child paired-device path still work (a blank id matches whoever is
+> active). See [`../docs/PROJECT_STATE.md` §10](../docs/PROJECT_STATE.md#10-cracks--gaps).
 
 ## Release engineering
 
