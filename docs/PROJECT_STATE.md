@@ -916,6 +916,16 @@ The **2026-08-31 post-audit reconciliation** additionally changed:
 Backend suites: **61 passed / 8 skipped** stdlib, **117 passed / 1 skipped** venv
 (both +1). Instrumented Android not run (no emulator).
 
+Follow-up cleanup (same day): removed the dead Android **seed-starters** chain
+(`ParentViewModel.seedStarters`, `ParentRepository.seedStarters`,
+`QuestGrowApi.seedStarters`) — the Persian client creates starters individually
+from the client-side `STARTERS` list, never via the backend's English
+`/quests/seed-starters` (that endpoint stays — the reference web client and two
+tests use it). Also removed `ParentViewModel.materialiseToday` (no caller;
+onboarding calls `ParentRepository.materialise` directly). `editQuest` /
+`editChild` API wrappers kept — thin, coherent parent-CRUD surface, no UI yet.
+Android unit 24 + lint pass.
+
 ---
 
 ## 19. How to independently verify this state

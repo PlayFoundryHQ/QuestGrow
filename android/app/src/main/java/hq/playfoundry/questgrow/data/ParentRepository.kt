@@ -64,8 +64,6 @@ class ParentRepository(private val api: QuestGrowApi) {
     suspend fun editQuest(questId: String, title: String? = null, points: Int? = null, archived: Boolean? = null): ApiResult<ParentQuest> =
         apiCall { api.editQuest(questId, QuestEditBody(title = title, points = points, archived = archived, active = archived?.let { !it })) }.map(::q)
 
-    suspend fun seedStarters(): ApiResult<List<ParentQuest>> = apiCall { api.seedStarters() }.map { it.map(::q) }
-
     suspend fun assign(childId: String, questId: String): ApiResult<Unit> =
         apiCall { api.assignQuest(childId, AssignBody(questId)) }.map { }
 

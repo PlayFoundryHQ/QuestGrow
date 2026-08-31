@@ -37,7 +37,6 @@ interface QuestGrowApi {
     @GET("v1/quests") suspend fun listQuests(): Response<List<QuestOut>>
     @POST("v1/quests") suspend fun createQuest(@Body body: QuestBody): Response<QuestOut>
     @PATCH("v1/quests/{id}") suspend fun editQuest(@Path("id") id: String, @Body body: QuestEditBody): Response<QuestOut>
-    @POST("v1/quests/seed-starters") suspend fun seedStarters(): Response<List<QuestOut>>
     @PUT("v1/quests/{id}/schedule") suspend fun setSchedule(@Path("id") id: String, @Body body: ScheduleBody): Response<OkResp>
     @GET("v1/rewards") suspend fun listRewards(): Response<List<RewardOut>>
     @POST("v1/rewards") suspend fun createReward(@Body body: RewardBody): Response<RewardOut>

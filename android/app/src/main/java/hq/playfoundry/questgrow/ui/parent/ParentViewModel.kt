@@ -138,9 +138,6 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
     fun editQuest(id: String, title: String?, points: Int?, archived: Boolean?) = viewModelScope.launch {
         action(repo.editQuest(id, title, points, archived)) { msg("ذخیره شد."); loadQuests() }
     }
-    fun seedStarters() = viewModelScope.launch {
-        action(repo.seedStarters()) { msg("روتین‌های آماده اضافه شد."); loadQuests() }
-    }
     fun assign(childId: String, questId: String) = viewModelScope.launch {
         action(repo.assign(childId, questId)) { msg("اختصاص داده شد.") }
     }
@@ -204,9 +201,6 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun materialiseToday(childId: String) = viewModelScope.launch {
-        action(repo.materialise(today())) { msg("روتین‌های امروز آماده شد."); loadDashboard(childId) }
-    }
     fun setNotifications(enabled: Boolean) = viewModelScope.launch {
         action(repo.setNotifications(enabled)) { msg(if (it) "اعلان‌ها روشن شد." else "اعلان‌ها خاموش شد.") }
     }
