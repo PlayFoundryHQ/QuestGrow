@@ -2,6 +2,7 @@ package hq.playfoundry.questgrow.data.net
 
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -44,6 +45,10 @@ interface QuestGrowApi {
 
     // ---- parent: assignment / ownership ----
     @POST("v1/children/{id}/quests") suspend fun assignQuest(@Path("id") id: String, @Body body: AssignBody): Response<Map<String, String>>
+    @GET("v1/children/{id}/quests") suspend fun assignedQuests(@Path("id") id: String): Response<List<AssignedQuestDto>>
+    @DELETE("v1/children/{cid}/quests/{qid}") suspend fun unassignQuest(
+        @Path("cid") childId: String, @Path("qid") questId: String,
+    ): Response<OkResp>
     @PUT("v1/children/{cid}/quests/{qid}/ownership") suspend fun setOwnership(
         @Path("cid") childId: String, @Path("qid") questId: String, @Body body: OwnershipBody,
     ): Response<OwnershipPlanOut>

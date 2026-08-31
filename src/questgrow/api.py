@@ -149,6 +149,16 @@ class AssignIn(BaseModel):
     quest_id: str
 
 
+class AssignedQuestOut(BaseModel):
+    """A routine on a child's plan — parent view only (carries the stage)."""
+
+    quest_id: str
+    title: str
+    icon: str
+    points: int
+    ownership_stage: OwnershipStage
+
+
 class OwnershipIn(BaseModel):
     target: OwnershipStage
 
@@ -510,6 +520,21 @@ def create_app(
     def assign_quest(child_id: str, body: AssignIn, p: ParentScope = Depends(_parent)):
         cq = svc.assign_quest(p, child_id=child_id, quest_id=body.quest_id)
         return {"child_id": cq.child_id, "quest_id": cq.quest_id}
+
+    @router.get("/children/{child_id}/quests", response_model=list[AssignedQuestOut])
+    def list_child_quests(child_id: str, p: ParentScope = Depends(_parent)):
+        return [
+            AssignedQuestOut(
+                quest_id=cq.quest_id, title=q.title, icon=q.icon, points=q.points,
+                ownership_stage=cq.ownership_stage,
+            )
+            for cq, q in svc.list_child_quests(p, child_id=child_id)
+        ]
+
+    @router.delete("/children/{child_id}/quests/{quest_id}")
+    def unassign_quest(child_id: str, quest_id: str, p: ParentScope = Depends(_parent)):
+        svc.unassign_quest(p, child_id=child_id, quest_id=quest_id)
+        return {"ok": True}
 
     @router.put("/children/{child_id}/quests/{quest_id}/ownership", response_model=OwnershipPlanOut)
     def set_ownership(child_id: str, quest_id: str, body: OwnershipIn,

@@ -94,6 +94,13 @@ import kotlinx.serialization.Serializable
     @SerialName("from_stage") val fromStage: String,
     @SerialName("to_stage") val toStage: String,
 )
+@Serializable data class AssignedQuestDto(
+    @SerialName("quest_id") val questId: String,
+    val title: String,
+    val icon: String,
+    val points: Int,
+    @SerialName("ownership_stage") val ownershipStage: String,
+)
 
 // ---- verification / review / ledger -----------------------------
 @Serializable data class DayBody(val day: String)

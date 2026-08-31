@@ -559,6 +559,35 @@ it.
 
 ---
 
+### DECISION-022 — A routine can be removed from a child's plan; the parent sees each child's assigned routines
+
+- **Status:** Accepted
+- **Date:** 2026-08-31
+- **Decision:** The parent Routines screen shows, for the selected child, the
+  routines currently on that child's plan, each with a «برداشتن» (remove) action
+  behind a confirm dialog. Starter templates already on the plan show
+  «✓ در برنامه» instead of an add button. Two additive backend endpoints back
+  this: `GET /v1/children/{id}/quests` (the child's assigned routines with
+  title/icon/points/stage, parent scope) and
+  `DELETE /v1/children/{id}/quests/{quest_id}` (unassign).
+- **Why:** the parent could assign a routine to a child but never see the result
+  or undo it — there was no per-child routine view and no unassign anywhere in
+  the product. Adjusting a child's routines as they grow is a core parent job
+  (Principle #20).
+- **Consequences:** `unassign_quest` is the exact inverse of `assign_quest` — it
+  drops the `ChildQuest` link, deletes any pending advancement suggestion, and
+  expires today/future **unresolved** occurrences so the routine leaves the
+  board. **Verified/pending occurrences and every ledger entry already earned
+  are kept** (append-only — INV-12/13); Lifetime Achievement never moves.
+  Re-assigning later starts a fresh plan at the default stage (idempotent-assign,
+  DECISION-017). No change to verification, reward, or scoring semantics.
+  `tests/test_assignment.py` (8), `ApiContractTest`.
+- **Related principles:** #2, #5, #20
+- **Affected documents:** [android/README.md](../../android/README.md), [PROJECT_STATE.md](../PROJECT_STATE.md)
+- **Related GitHub issues:** —
+
+---
+
 ## Reserved for future entries
 
 New durable decisions are appended with the next sequential id. Superseding a

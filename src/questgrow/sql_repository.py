@@ -217,6 +217,11 @@ class SqlRepository:
 
     save_child_quest = put_child_quest
 
+    def delete_child_quest(self, child_id: str, quest_id: str) -> None:
+        self.db.execute(
+            "DELETE FROM child_quest WHERE child_id = ? AND quest_id = ?",
+            (child_id, quest_id))
+
     @staticmethod
     def _child_quest_row(r) -> ChildQuest:
         return ChildQuest(

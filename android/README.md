@@ -2,7 +2,7 @@
 
 A native Android **client** of the QuestGrow backend. It consumes the
 established `/v1` API and domain contracts (`docs/architecture/TECHNICAL_MODEL.md`,
-`DECISION-001…021`, `INV-1…18`, `docs/experience/UX_PRINCIPLES.md`). It does
+`DECISION-001…022`, `INV-1…18`, `docs/experience/UX_PRINCIPLES.md`). It does
 **not** re-implement QuestGrow's product model — the server stays authoritative
 for identity, `complexityProfile`, ownership stage, verification, rewards,
 balances and approvals.
@@ -42,6 +42,12 @@ narration in Persian. The app forces `fa` regardless of device locale.
   self-service rewards celebrate immediately, `parent_confirmed` ones land in
   the parent's inbox. Backend: `GET /v1/me/rewards`, `GET /v1/redemptions`
   (both additive, read-only).
+- **Per-child routine management** (v0.7, DECISION-022). The **روتین‌ها** screen
+  is scoped to the selected child: it lists the routines on that child's plan,
+  each removable via «برداشتن» behind a confirm dialog; a starter already on the
+  plan shows «✓ در برنامه» instead of an add button. Backend:
+  `GET /v1/children/{id}/quests`, `DELETE /v1/children/{id}/quests/{quest_id}`
+  (unassign — keeps earned ledger + verified history, INV-12/13).
 - **First run** = a 4-step stepper (who → account+PIN → add child → pick
   routine cards; auto-assigns + materialises), plus the sign-in and the
   child-device-pairing branches.
@@ -130,7 +136,7 @@ A kid on their own device: the parent generates a **6-digit code** in
 ## Testing
 
 ```
-./gradlew :app:testDebugUnitTest            # 24 JVM tests
+./gradlew :app:testDebugUnitTest            # 27 JVM tests
 ./gradlew :app:connectedDebugAndroidTest    # instrumented (needs a device/emulator)
 ```
 

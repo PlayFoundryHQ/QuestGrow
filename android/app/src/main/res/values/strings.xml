@@ -156,6 +156,11 @@
     <string name="routines_family">روتین‌های خانواده</string>
     <string name="routines_family_sub">همهٔ روتین‌هایی که ساخته‌ای. هر کدام را می‌توانی به چند کودک بدهی.</string>
     <string name="routines_empty">هنوز روتینی نساخته‌ای — از روتین‌های آماده یکی را انتخاب کن.</string>
+    <string name="routine_in_plan">✓ در برنامه</string>
+    <string name="routine_assigned_header">روتین‌های %1$s</string>
+    <string name="routine_assigned_empty">هنوز روتینی به %1$s داده نشده.</string>
+    <string name="routine_remove">برداشتن</string>
+    <string name="routine_remove_confirm">«%1$s» از برنامهٔ %2$s برداشته شود؟ ستاره‌هایی که تا حالا گرفته سر جایش می‌ماند.</string>
 
     <!-- rewards -->
     <string name="reward_add">جایزهٔ تازه</string>

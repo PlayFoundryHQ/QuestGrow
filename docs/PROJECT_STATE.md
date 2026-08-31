@@ -89,7 +89,7 @@ Each row: **1** implemented in code · **2** covered by an automated test · **3
 | Parent home (child glance + inboxes + setup hub) | ✓ | ✓ (approvals inbox) | ✓ | ✓ | ✓ | v0.6 card-hub redesign |
 | Approvals inbox (approve / not-yet / approve-all) | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | **Reward-redemption inbox** (grant / decline) | ✓ | ✓ (`AppFlowTest`) | ✓ | ✓ | ✓ | v0.5.0; `GET /v1/redemptions` |
-| Routines: starter templates → create family routine → add to a child | ✓ | ✓ (`test_invariants` idempotent-assign) | ✓ | ✓ | ✓ | v0.6.3+: on-screen child switcher; single «افزودن به {نام}» action; `assign_quest` idempotent (§10 CRACK-6, fixed) |
+| Routines: per-child plan — add / remove, starter templates, family pool | ✓ | ✓ (`test_invariants` idempotent-assign, `test_assignment` ×8) | ✓ | ✓ (emulator) | ✓ | v0.7: on-screen child switcher, «افزودن به {نام}» / «برداشتن» (confirm), «✓ در برنامه»; `assign_quest` idempotent (CRACK-6); `unassign_quest` keeps earned ledger (DECISION-022) |
 | Rewards: create (cost, self-service / parent-confirmed) | ✓ | — | ✓ | ✓ | ✓ | |
 | Ownership: set stage per (child, quest); suggestions accept/dismiss | ✓ | — | ✓ | ✓ | ✓ | 4 stages parent-facing only (INV-8) |
 | Children section (list; add child) | ✓ | — | ✓ | ✓ | ✓ | v0.6.2 dropped the per-child "activate on device" toggle |
@@ -112,7 +112,7 @@ Each row: **1** implemented in code · **2** covered by an automated test · **3
 
 | Capability | 1 | 2 | 3 | 4 | 5 | Notes |
 |---|---|---|---|---|---|---|
-| `/v1` + legacy (unprefixed) API — 39 logical endpoints, each at `/` and `/v1/` | ✓ | ✓ (`test_api.py`, OpenAPI scan) | ✓ | ✓ (`/openapi.json` live) | ✓ | |
+| `/v1` + legacy (unprefixed) API — ~41 logical endpoints, each at `/` and `/v1/` | ✓ | ✓ (`test_api.py`, OpenAPI scan) | ✓ | ✓ (`/openapi.json` live) | ✓ | |
 | Auth: signup / login / unlock(PIN) → session→parent→child tokens | ✓ | ✓ (`test_auth.py` ×9) | ✓ | ✓ | ✓ | no refresh token (auth-policy) |
 | 6-digit pairing code → child token (single-use, 15-min TTL) | ✓ | ✓ (`test_auth.py`) | ✓ | ✓ | ✓ | kind `pair`; not resolvable as a scope |
 | Rate-limit on login/unlock (5 / 900s / 900s lockout) | ✓ | ✓ (`test_f_hardening.py`) | ✓ | — | ✓ | env-tunable |
@@ -517,8 +517,8 @@ No GitHub Actions. Local build → GHCR → tag → Release → ops PR → ArgoC
 
 | Suite | Command | Result |
 |---|---|---|
-| stdlib (bare interpreter, domain) | `python3 -m pytest -q` | **61 passed, 8 skipped** (skips = suites needing `fastapi`/`httpx`) |
-| full stack (venv) | `.venv/bin/python -m pytest -q` | **117 passed, 1 skipped** (skip = `test_f_persistence.py` Postgres, needs `QUESTGROW_TEST_POSTGRES_URL`) |
+| stdlib (bare interpreter, domain) | `python3 -m pytest -q` | **61 passed, 9 skipped** (skips = suites needing `fastapi`/`httpx`) |
+| full stack (venv) | `.venv/bin/python -m pytest -q` | **125 passed, 1 skipped** (skip = `test_f_persistence.py` Postgres, needs `QUESTGROW_TEST_POSTGRES_URL`) |
 
 118 tests collected (`test_invariants.py` +1, 2026-08-31). By file: `test_invariants.py` 19 · `test_d1_acceptance.py`
 17 · `test_acceptance.py` 17 · `test_c1_persistence.py` 15 · `test_f_hardening.py`
@@ -530,7 +530,7 @@ No GitHub Actions. Local build → GHCR → tag → Release → ops PR → ArgoC
 
 | Suite | Command | Result |
 |---|---|---|
-| unit (JVM) | `./gradlew :app:testDebugUnitTest` | **27 passed** (5 files: `ApiContractTest`, `ComplexityProfileTest`, `DtoSerializationTest`, `OfflineAndSyncTest` incl. `ChildRepositoryMultiChildTest` ×3, `OfflineCacheTest`) |
+| unit (JVM) | `./gradlew :app:testDebugUnitTest` | **27 passed** (5 files; `OfflineAndSyncTest` incl. `ChildRepositoryMultiChildTest` ×3) |
 | lint (release-gating) | `./gradlew :app:lintVitalRelease` | **pass** (`lint-results-debug`: 0 errors, 75 warnings — non-blocking: unused resources, etc.) |
 | instrumented (needs emulator/device) | `./gradlew :app:connectedDebugAndroidTest` | **12 passed** — `AppFlowTest` ×9 + `TokenStoreTest` ×3. Run green **twice in a row** this session on the HEAD tree after the v0.6.3 container-leak fix (previously flaky: `kidBoard_rewards_redeem_asksGrownup` — root cause was leaked `ConnectivityManager` callbacks hammering MockWebServer; fixed by `AppContainer.close()`). |
 
@@ -595,6 +595,7 @@ fixed (2026-08-31): cache and queue are `childId`-scoped.
 | `PARENT_MANAGED` domain-valid but not MVP-assignable | DECISION-019 | enum has it; MVP assignment UI omits it | **MATCH** (deferred, documented) |
 | Persian-only, RTL client; web clients retired as a product surface | DECISION-020 | Android is Persian/RTL; web clients still served but English, QA-only | **MATCH** |
 | Family device holds multiple children; kid spends points in-app | DECISION-021 | multi-child `TokenStore`; kid rewards screen; parent redemption inbox | **MATCH** (implementation went further — v0.6.2 auto-sync, no "activate" step) |
+| A routine can be removed from a child's plan; parent sees each child's routines | DECISION-022 | `GET/DELETE /v1/children/{id}/quests/*`; v0.7 Routines screen | **MATCH** (new 2026-08-31) |
 | Auth: static email/password + PIN, no OIDC, no refresh, no payment | auth-policy note; `E_READINESS` addendum; `ARCHITECTURE.md` | exactly as built | **MATCH** |
 | **Android README "Shape (Phase L)" section** | describes the L-era parent home ("each child's day in a line + approvals inbox") and the L-era gate ("'بزرگترها ›' text button") | v0.6 redesigned the parent home into a card hub; the gate is a pill in the board header; multi-child + sign-in recovery + TTS status added | **OBSOLETE DOCUMENTATION** → fixed in this pass (§12) |
 | Android README offline section | multi-child offline behaviour | cache + queue `childId`-scoped (2026-08-31) | **MATCH** — README updated, CRACK-1 fixed |
@@ -731,6 +732,7 @@ scope, and nothing in this reconciliation changes it.
 - API path versioning is done; delta/ETag polling, per-occurrence completion
   timestamps, PIN-change flow — post-MVP (`E_READINESS` Class D).
 - `PARENT_MANAGED` assignment UI (DECISION-019).
+- ~~Per-child routine list / unassign~~ — **shipped 2026-08-31** (DECISION-022).
 - ROADMAP Layers 1–5: real-time / co-present celebration, milestone keepsakes,
   deeper age adaptation, meta-game, multi-caregiver / verifier roles, photo
   evidence, web parent dashboard, additional languages.
@@ -770,11 +772,11 @@ scope, and nothing in this reconciliation changes it.
 ## 14. Product decisions (index)
 
 Authoritative record: [`docs/governance/DECISION_LOG.md`](governance/DECISION_LOG.md).
-**DECISION-001 … DECISION-021**, all status **Accepted**, none reversed or
+**DECISION-001 … DECISION-022**, all status **Accepted**, none reversed or
 superseded. Technical invariants **INV-1 … INV-18** in
 [`docs/architecture/TECHNICAL_MODEL.md`](architecture/TECHNICAL_MODEL.md) §
 "Invariants", each with implementation evidence and (where automatable) a test.
-§5 (Decision & Invariant audit) of the reconciliation confirmed all 21
+§5 (Decision & Invariant audit) of the reconciliation confirmed all 22
 decisions and all 18 invariants hold against the current code — see §9.
 
 Auth policy (static email/password + PIN, no OIDC, no refresh, no payment) is
@@ -915,6 +917,26 @@ Backend suites: **61 passed / 8 skipped** stdlib, **117 passed / 1 skipped** ven
 suite (**12/12**, emulator) and unit suite (**27/27**) pass on the resulting
 tree.
 
+**DECISION-022 — per-child routine management (same day).** The parent Routines
+screen is now scoped to the selected child: it lists that child's assigned
+routines with a «برداشتن» (remove) action behind a confirm dialog, and a starter
+already on the plan shows «✓ در برنامه». New additive backend endpoints
+`GET /v1/children/{id}/quests` and `DELETE /v1/children/{id}/quests/{quest_id}`
+(`unassign_quest` — the inverse of `assign_quest`: drops the link + pending
+suggestion + today/future unresolved occurrences; **keeps every earned ledger
+entry and verified/pending occurrence** — INV-12/13). Backend **125/1** venv
+(+8), Android unit **27**, lint pass, instrumented **12/12** (emulator).
+CODE EXISTS on `main`; ships with the next release.
+
+Files: `docs/governance/DECISION_LOG.md` (DECISION-022), `src/questgrow/service.py`
+(`list_child_quests`, `unassign_quest`), `src/questgrow/repository.py` +
+`src/questgrow/sql_repository.py` (`delete_child_quest`), `src/questgrow/api.py`
+(`AssignedQuestOut`, `GET`/`DELETE /children/{id}/quests`),
+`tests/test_assignment.py` (new, 8), and Android
+`data/net/{Dtos,QuestGrowApi}.kt`, `data/{ParentRepository}.kt`,
+`data/model/Models.kt`, `ui/parent/{ParentViewModel,ParentFlow}.kt`,
+`res/values/strings.xml`, `android/README.md`.
+
 Follow-up cleanup (same day): removed the dead Android **seed-starters** chain
 (`ParentViewModel.seedStarters`, `ParentRepository.seedStarters`,
 `QuestGrowApi.seedStarters`) — the Persian client creates starters individually
@@ -942,7 +964,7 @@ grep version pyproject.toml src/questgrow/api.py              # 0.6.3
 
 # 3. live deployment truth
 curl -s https://questgrow.opscale.ir/health                   # {"status":"ok","api":"0.6.1"}
-curl -s https://questgrow.opscale.ir/openapi.json | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["paths"]))'   # 78 (39 logical × {/, /v1})
+curl -s https://questgrow.opscale.ir/openapi.json | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["paths"]))'   # 78 on live 0.6.x; +GET/DELETE children/{id}/quests in v0.7
 kubectl -n questgrow get deploy questgrow -o jsonpath='{.spec.template.spec.containers[0].image}'   # :0.6.1
 kubectl -n argocd get application questgrow -o jsonpath='{.status.sync.status}/{.status.health.status}'   # Synced/Healthy
 cat /tmp/ops/gitops/apps/questgrow.yaml | grep targetRevision  # 0.6.1 (ops repo); PRs #75/#76 open
@@ -989,6 +1011,7 @@ This file does not erase or rewrite prior phase reports. The history stands:
 | 2026-08-31 UX/terminology audit — parent Routines screen clarity | this file §10/§11/§18, `strings.xml`, `ParentFlow.kt` | current |
 | 2026-08-31 post-audit reconciliation — `assign_quest` idempotency (CRACK-6 fix) | this file §2/§9/§10/§18, `service.py`, `test_invariants.py` | current |
 | 2026-08-31 autonomous phase — offline layer `childId`-scoped (CRACK-1 fix) | this file §2/§4/§8/§10/§11/§15, `android/README.md`, `data/local/ReadCache.kt`, `data/local/OfflineQueue.kt`, `data/ChildRepository.kt`, `data/AuthRepository.kt`, `QuestGrowApp.kt`, `OfflineAndSyncTest.kt`, `OfflineCacheTest.kt` | current |
+| 2026-08-31 autonomous phase — per-child routine management (DECISION-022) | `DECISION_LOG.md`, this file §2/§7/§9/§12, `android/README.md`, `service.py`, `repository.py`, `sql_repository.py`, `api.py`, `test_assignment.py`, Android `Dtos`/`QuestGrowApi`/`ParentRepository`/`ParentViewModel`/`ParentFlow`/`Models` | current |
 
 Current truth = this file + the code at `HEAD`. Historical truth = the phase
 reports, unchanged.

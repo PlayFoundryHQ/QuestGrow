@@ -277,6 +277,29 @@ private fun Routines(vm: ParentViewModel, s: ParentState, childId: String?, onPi
         }
     }
 
+    LaunchedEffect(childId) { childId?.let { vm.loadAssigned(it) } }
+    val assigned = s.assigned.valueOrNull ?: emptyList()
+    val assignedIds = assigned.map { it.questId }.toSet()
+    var pendingRemove by remember { mutableStateOf<hq.playfoundry.questgrow.data.model.AssignedRoutine?>(null) }
+
+    // --- routines already on this child's plan, each removable ---
+    if (activeName.isNotEmpty()) {
+        SectionHeader(stringResource(R.string.routine_assigned_header, activeName), assigned.size)
+        when (val a = s.assigned) {
+            is Loadable.Loaded -> if (a.value.isEmpty()) {
+                HintText(stringResource(R.string.routine_assigned_empty, activeName))
+            } else a.value.forEach { r ->
+                Row(Modifier.fillMaxWidth().padding(vertical = Space.xs), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${r.icon}  ${r.title}  (${r.points.fa()})", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    GhostButton(stringResource(R.string.routine_remove)) { pendingRemove = r }
+                }
+            }
+            is Loadable.Failed -> Text(a.message, color = MaterialTheme.colorScheme.error)
+            else -> HintText("…")
+        }
+        HorizontalDivider(Modifier.padding(vertical = Space.sm))
+    }
+
     SectionHeader(stringResource(R.string.routine_starters))
     if (activeName.isNotEmpty()) HintText(stringResource(R.string.routine_starters_sub, activeName))
     val existing = (s.quests.valueOrNull ?: emptyList()).map { it.questId }.toSet()
@@ -284,12 +307,16 @@ private fun Routines(vm: ParentViewModel, s: ParentState, childId: String?, onPi
         if (activeName.isEmpty()) stringResource(R.string.routine_add_plain)
         else stringResource(R.string.routine_add_to_child, activeName)
     STARTERS.forEach { st ->
-        val added = st.id in existing
+        val onPlan = st.id in assignedIds
         Row(Modifier.fillMaxWidth().padding(vertical = Space.xs), verticalAlignment = Alignment.CenterVertically) {
             Text("${st.icon}  ${st.title}", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            SecondaryButton(addLabel) {
-                if (!added) vm.createQuest(st.id, st.title, st.icon, st.points, "daily")
-                childId?.let { vm.assign(it, st.id) }
+            if (onPlan) {
+                Text(stringResource(R.string.routine_in_plan), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
+            } else {
+                SecondaryButton(addLabel) {
+                    if (st.id !in existing) vm.createQuest(st.id, st.title, st.icon, st.points, "daily")
+                    childId?.let { vm.assign(it, st.id) }
+                }
             }
         }
     }
@@ -301,6 +328,25 @@ private fun Routines(vm: ParentViewModel, s: ParentState, childId: String?, onPi
         else q.value.forEach { Text("${it.icon}  ${it.title}  (${it.points.fa()})", Modifier.padding(vertical = 2.dp)) }
         is Loadable.Failed -> Text(q.message, color = MaterialTheme.colorScheme.error)
         else -> HintText("…")
+    }
+
+    pendingRemove?.let { r ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingRemove = null },
+            title = { Text(r.title) },
+            text = { Text(stringResource(R.string.routine_remove_confirm, r.title, activeName)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    childId?.let { vm.unassign(it, r.questId) }
+                    pendingRemove = null
+                }) { Text(stringResource(R.string.routine_remove)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingRemove = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
 

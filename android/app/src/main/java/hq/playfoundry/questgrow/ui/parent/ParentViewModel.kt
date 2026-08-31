@@ -32,6 +32,8 @@ data class ParentState(
     // per-section load state (Phase J)
     val family: Loadable<List<ChildDashboard>> = Loadable.Idle,
     val quests: Loadable<List<ParentQuest>> = Loadable.Idle,
+    /** routines assigned to the child currently selected on the Routines screen */
+    val assigned: Loadable<List<hq.playfoundry.questgrow.data.model.AssignedRoutine>> = Loadable.Idle,
     val rewards: Loadable<List<ParentReward>> = Loadable.Idle,
     val approvals: Loadable<List<Approval>> = Loadable.Idle,
     val suggestions: Loadable<List<AdvancementSuggestion>> = Loadable.Idle,
@@ -139,7 +141,19 @@ class ParentViewModel(private val container: AppContainer) : ViewModel() {
         action(repo.editQuest(id, title, points, archived)) { msg("ذخیره شد."); loadQuests() }
     }
     fun assign(childId: String, questId: String) = viewModelScope.launch {
-        action(repo.assign(childId, questId)) { msg("اختصاص داده شد.") }
+        action(repo.assign(childId, questId)) { msg("به برنامه اضافه شد."); loadAssigned(childId) }
+    }
+
+    fun loadAssigned(childId: String) {
+        set { it.copy(assigned = Loadable.Loading) }
+        viewModelScope.launch {
+            val r = repo.assignedQuests(childId)
+            set { it.copy(assigned = r.toLoadable { x -> x }) }
+        }
+    }
+
+    fun unassign(childId: String, questId: String) = viewModelScope.launch {
+        action(repo.unassign(childId, questId)) { msg("از برنامه برداشته شد."); loadAssigned(childId) }
     }
 
     // ---- rewards ----

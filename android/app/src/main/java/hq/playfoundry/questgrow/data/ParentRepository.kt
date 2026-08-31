@@ -67,6 +67,19 @@ class ParentRepository(private val api: QuestGrowApi) {
     suspend fun assign(childId: String, questId: String): ApiResult<Unit> =
         apiCall { api.assignQuest(childId, AssignBody(questId)) }.map { }
 
+    suspend fun assignedQuests(childId: String): ApiResult<List<hq.playfoundry.questgrow.data.model.AssignedRoutine>> =
+        apiCall { api.assignedQuests(childId) }.map { list ->
+            list.map {
+                hq.playfoundry.questgrow.data.model.AssignedRoutine(
+                    it.questId, it.title, it.icon, it.points,
+                    hq.playfoundry.questgrow.data.model.OwnershipStage.of(it.ownershipStage),
+                )
+            }
+        }
+
+    suspend fun unassign(childId: String, questId: String): ApiResult<Unit> =
+        apiCall { api.unassignQuest(childId, questId) }.map { }
+
     // ---- rewards ----
     private fun rw(it: hq.playfoundry.questgrow.data.net.RewardOut) =
         ParentReward(it.rewardId, it.name, it.icon, it.cost, it.mode, it.active)

@@ -69,6 +69,15 @@ data class ParentQuest(
     val archived: Boolean,
 )
 
+/** A routine currently on a child's plan (parent Routines screen). */
+data class AssignedRoutine(
+    val questId: String,
+    val title: String,
+    val icon: String,
+    val points: Int,
+    val stage: OwnershipStage,
+)
+
 data class ParentReward(
     val rewardId: String,
     val name: String,

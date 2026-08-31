@@ -344,6 +344,46 @@ class QuestGrowService:
         )
         return cq
 
+    def list_child_quests(self, parent, *, child_id: str) -> list[tuple[ChildQuest, Quest]]:
+        """Every routine currently assigned to this child, paired with its
+        latest quest version for display (parent view, INV-5). Assignments whose
+        quest has no live version are skipped."""
+        p = self._require_parent(parent)
+        self._parent_owns_child(p, child_id)
+        out: list[tuple[ChildQuest, Quest]] = []
+        for cq in sorted(self.repo.child_quests_of(child_id), key=lambda c: c.quest_id):
+            q = self.repo.latest_quest(cq.quest_id)
+            if q is not None:
+                out.append((cq, q))
+        return out
+
+    def unassign_quest(self, parent, *, child_id: str, quest_id: str) -> None:
+        """Remove a routine from a child's plan. The inverse of ``assign_quest``:
+        the ``ChildQuest`` link and any not-yet-resolved occurrence from today
+        onward are dropped so the routine leaves the child's board and stops
+        materialising. Verified/pending occurrences and every ledger entry
+        already earned are **kept** (append-only — INV-12/13); Lifetime
+        Achievement never moves. Re-assigning later starts a fresh plan."""
+        p = self._require_parent(parent)
+        self._parent_owns_child(p, child_id)
+        if self.repo.get_child_quest(child_id, quest_id) is None:
+            raise NotFound(f"child_quest {child_id}:{quest_id}")
+        self.repo.delete_child_quest(child_id, quest_id)
+        self.repo.delete_suggestion(child_id, quest_id)
+        today = _now().date()
+        for inst in self.repo.instances_of(child_id):
+            if (
+                inst.quest_id == quest_id
+                and inst.on_date >= today
+                and inst.state in (InstanceState.AVAILABLE, InstanceState.NOT_YET)
+            ):
+                inst.state = InstanceState.EXPIRED
+                self.repo.save_instance(inst)
+        self._audit(
+            f"parent:{p.account_id}", "unassign_quest",
+            f"child_quest:{child_id}:{quest_id}", "assigned", "-",
+        )
+
     # ------------------------------------------------------------------ #
     # ownership stage service (TECHNICAL_MODEL §3, INV-5/6, DECISION-017) #
     # ------------------------------------------------------------------ #
