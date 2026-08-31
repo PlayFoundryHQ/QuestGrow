@@ -324,6 +324,11 @@ class QuestGrowService:
         child = self._parent_owns_child(p, child_id)
         if self.repo.latest_quest(quest_id) is None:
             raise NotFound(f"quest {quest_id}")
+        # Idempotent: re-assigning an already-assigned (child, quest) must not
+        # discard the child's ownership stage or progress (INV-2, DECISION-017).
+        existing = self.repo.get_child_quest(child_id, quest_id)
+        if existing is not None:
+            return existing
         stage = default_stage_for_age_band(child.age_band)  # DECISION-019: always PARENT_GUIDED in MVP
         cq = ChildQuest(
             child_id=child_id,

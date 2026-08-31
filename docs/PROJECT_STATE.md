@@ -19,10 +19,19 @@
 > single explicit action label — **«افزودن به {نام}»** — in place of the two
 > unlabelled-target buttons «ساختن» / «اختصاص»; six dead string resources
 > removed. No domain, API, or data-model change; no settled decision reopened.
-> Findings that need an owner call are in §10/§11. Backend unchanged
-> (60/8 + 116/1); Android unit 24 + lint pass; instrumented **not run this pass**
-> (no emulator available — the change is copy + one picker row, `AppFlowTest`
-> does not exercise the Routines screen).
+> Findings that need an owner call are in §10/§11. Android unit 24 + lint pass;
+> instrumented **not run this pass** (no emulator available — the change is copy
+> + one picker row, `AppFlowTest` does not exercise the Routines screen).
+>
+> **2026-08-31 — post-audit reconciliation.** One corrective backend fix:
+> `assign_quest` is now **idempotent** — re-assigning an already-assigned
+> `(child, quest)` returns the existing `ChildQuest` unchanged instead of
+> silently resetting its ownership stage + progress count (was CRACK-6; the
+> reset contradicted INV-2 / DECISION-017, so this aligns code with an
+> established decision rather than making a new one). Test added
+> (`test_invariants.py::test_assign_quest_is_idempotent_preserves_stage_and_progress`).
+> Backend: **61/8 stdlib + 117/1 venv** (both +1). Not yet cut as a release —
+> CODE EXISTS on `main`, ships with the next backend version bump.
 
 ---
 
@@ -80,7 +89,7 @@ Each row: **1** implemented in code · **2** covered by an automated test · **3
 | Parent home (child glance + inboxes + setup hub) | ✓ | ✓ (approvals inbox) | ✓ | ✓ | ✓ | v0.6 card-hub redesign |
 | Approvals inbox (approve / not-yet / approve-all) | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | **Reward-redemption inbox** (grant / decline) | ✓ | ✓ (`AppFlowTest`) | ✓ | ✓ | ✓ | v0.5.0; `GET /v1/redemptions` |
-| Routines: starter templates → create family routine → add to a child | ✓ | — | ✓ | ✓ | ✓ | v0.6.3+: on-screen child switcher; single «افزودن به {نام}» action. Re-adding an already-assigned routine resets its ownership stage — see §10 CRACK-6 |
+| Routines: starter templates → create family routine → add to a child | ✓ | ✓ (`test_invariants` idempotent-assign) | ✓ | ✓ | ✓ | v0.6.3+: on-screen child switcher; single «افزودن به {نام}» action; `assign_quest` idempotent (§10 CRACK-6, fixed) |
 | Rewards: create (cost, self-service / parent-confirmed) | ✓ | — | ✓ | ✓ | ✓ | |
 | Ownership: set stage per (child, quest); suggestions accept/dismiss | ✓ | — | ✓ | ✓ | ✓ | 4 stages parent-facing only (INV-8) |
 | Children section (list; add child) | ✓ | — | ✓ | ✓ | ✓ | v0.6.2 dropped the per-child "activate on device" toggle |
@@ -510,10 +519,10 @@ No GitHub Actions. Local build → GHCR → tag → Release → ops PR → ArgoC
 
 | Suite | Command | Result |
 |---|---|---|
-| stdlib (bare interpreter, domain) | `python3 -m pytest -q` | **60 passed, 8 skipped** (skips = suites needing `fastapi`/`httpx`) |
-| full stack (venv) | `.venv/bin/python -m pytest -q` | **116 passed, 1 skipped** (skip = `test_f_persistence.py` Postgres, needs `QUESTGROW_TEST_POSTGRES_URL`) |
+| stdlib (bare interpreter, domain) | `python3 -m pytest -q` | **61 passed, 8 skipped** (skips = suites needing `fastapi`/`httpx`) |
+| full stack (venv) | `.venv/bin/python -m pytest -q` | **117 passed, 1 skipped** (skip = `test_f_persistence.py` Postgres, needs `QUESTGROW_TEST_POSTGRES_URL`) |
 
-117 tests collected. By file: `test_invariants.py` 18 · `test_d1_acceptance.py`
+118 tests collected (`test_invariants.py` +1, 2026-08-31). By file: `test_invariants.py` 19 · `test_d1_acceptance.py`
 17 · `test_acceptance.py` 17 · `test_c1_persistence.py` 15 · `test_f_hardening.py`
 9 · `test_auth.py` 9 · `test_api.py` 9 · `test_webclient.py` 8 ·
 `test_notifications.py` 7 · `test_f_persistence.py` 4 · `test_rewards_inbox.py` 3 ·
@@ -585,6 +594,7 @@ cross accounts).
 | Lifetime Achievement monotonic ⟂ Spendable Balance | DECISION-015; INV-13 | `redeem`/`adjustment` never reduce `Σ earn` (property test) | **MATCH** |
 | Ledger append-only, idempotent, server-written | DECISION-016; INV-11/12 | INSERT-only; `ON CONFLICT DO NOTHING` on `idempotency_key` | **MATCH** |
 | Parent authority invariant across stages | DECISION-016; INV-17 | authz matrix test parameterised over all 4 stages | **MATCH** |
+| Ownership stage + progress are durable, parent-controlled state | DECISION-017; INV-2 | `assign_quest` idempotent (2026-08-31) — re-assign no longer resets stage/count | **MATCH** (was a latent contradiction — CRACK-6 — now fixed) |
 | `PARENT_MANAGED` domain-valid but not MVP-assignable | DECISION-019 | enum has it; MVP assignment UI omits it | **MATCH** (deferred, documented) |
 | Persian-only, RTL client; web clients retired as a product surface | DECISION-020 | Android is Persian/RTL; web clients still served but English, QA-only | **MATCH** |
 | Family device holds multiple children; kid spends points in-app | DECISION-021 | multi-child `TokenStore`; kid rewards screen; parent redemption inbox | **MATCH** (implementation went further — v0.6.2 auto-sync, no "activate" step) |
@@ -652,26 +662,22 @@ Losing them means no signed upgrade for any installed APK (a fresh key = a new
 app identity / reinstall). The owner must back this up. Recorded in
 `android/RELEASE.md` and the project memory; restated here.
 
-### CRACK-6 — `assign_quest` resets ownership progress on re-assign — **POSSIBLE DEFECT / PO DECISION**
+### CRACK-6 — `assign_quest` reset ownership progress on re-assign — **FIXED 2026-08-31**
 
-`QuestGrowService.assign_quest` (`src/questgrow/service.py`) unconditionally
-writes a fresh `ChildQuest(ownership_stage=default_for_age, consecutive_ok_count=0,
-assigned_at=now)`. Calling it again for a `(child, quest)` that is **already
-assigned** silently discards the child's current ownership stage and progress
-count. Nothing in the docs says re-assignment should reset progress
-(DECISION-017 / INV-2 treat the stage as parent-controlled and durable).
+`QuestGrowService.assign_quest` unconditionally wrote a fresh
+`ChildQuest(ownership_stage=default_for_age, consecutive_ok_count=0)`, so a
+second `assign` for an already-assigned `(child, quest)` silently discarded the
+child's ownership stage and progress — contradicting INV-2 / DECISION-017
+(durable, parent-controlled ownership state). The parent Routines screen offers
+the "add" action for every starter regardless of per-child assignment state, so
+a stray double-tap could trigger it.
 
-- **Android exposure:** the parent Routines screen shows the "add" action for
-  every starter regardless of whether it is already on the selected child's day
-  (the client only knows the routine exists on the *account*, not the
-  per-child assignment). A stray second tap resets that child's progress on
-  that routine. The 2026-08-31 pass made the target child explicit but did
-  **not** change this — the client would need per-child assignment data to
-  guard it, and the reset itself is a backend-semantics question.
-- **Recommended fix (needs owner sign-off):** make `assign_quest` idempotent —
-  if a `ChildQuest` row already exists, keep its stage/count and return it
-  unchanged (or expose an explicit "reset this routine" action). Small,
-  well-scoped once decided. → §11.
+**Fix:** `assign_quest` now returns the existing `ChildQuest` unchanged when one
+exists (idempotent). Test:
+`test_invariants.py::test_assign_quest_is_idempotent_preserves_stage_and_progress`.
+If an explicit "reset this routine" affordance is ever wanted it can be added as
+a separate, named action — that would be a product decision; the silent reset
+was a bug.
 
 ### CRACK-5 — stale code/doc comments (fixed in this pass)
 
@@ -707,11 +713,7 @@ said "DECISION-001…019" and "Phase G". Corrected in the same commit as this fi
    owner ever wants to ship an upgrade to an installed APK.
 4. **Parent-token TTL of 12h** — already the owner's decision; flagged here so
    it is on the record as a deliberate trade-off, not a default left unset.
-5. **`assign_quest` idempotency (CRACK-6).** Should re-adding an
-   already-assigned routine to a child be a no-op that preserves ownership
-   progress (recommended), or should "reset this routine" be a separate explicit
-   action? Currently a silent reset. Needs an owner call before the fix lands.
-6. **AvaCore package name after the PlayFoundryHQ migration** — if it changes,
+5. **AvaCore package name after the PlayFoundryHQ migration** — if it changes,
    the explicit `<package>` in the manifest needs a one-line update (tell the
    dev agent; the generic query still works either way).
 
@@ -903,8 +905,16 @@ The **2026-08-31 UX/terminology audit** additionally changed:
   add-only paths, and the second section header renamed
   `nav_routines` → `routines_family` with a subtitle.
 
-No domain / API / data-model change. Backend suites unchanged (60/8 + 116/1);
-Android unit 24 + `lintVitalRelease` pass; instrumented not run (no emulator).
+No domain / API / data-model change in that commit. Android unit 24 + `lintVitalRelease` pass.
+
+The **2026-08-31 post-audit reconciliation** additionally changed:
+- `src/questgrow/service.py` — `assign_quest` returns the existing `ChildQuest`
+  when one exists (idempotent; CRACK-6 fix). ~4 lines, no signature/API change.
+- `tests/test_invariants.py` — `test_assign_quest_is_idempotent_preserves_stage_and_progress`.
+- `docs/PROJECT_STATE.md` — this note, §2, §9, §10, §11.
+
+Backend suites: **61 passed / 8 skipped** stdlib, **117 passed / 1 skipped** venv
+(both +1). Instrumented Android not run (no emulator).
 
 ---
 
@@ -968,6 +978,7 @@ This file does not erase or rewrite prior phase reports. The history stands:
 | `v0.6.3` (`23338ea`) — TTS `<queries>` + container-leak fix | commit | current |
 | Reconciliation (`80449ec`, `1cbea77`) — `docs/PROJECT_STATE.md` | this file | the current-state index |
 | 2026-08-31 UX/terminology audit — parent Routines screen clarity | this file §10/§11/§18, `strings.xml`, `ParentFlow.kt` | current |
+| 2026-08-31 post-audit reconciliation — `assign_quest` idempotency (CRACK-6 fix) | this file §2/§9/§10/§18, `service.py`, `test_invariants.py` | current |
 
 Current truth = this file + the code at `HEAD`. Historical truth = the phase
 reports, unchanged.

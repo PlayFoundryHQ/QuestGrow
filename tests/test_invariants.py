@@ -285,3 +285,19 @@ def test_inv18_child_intent_only_own_child(world):
         world.redeem_reward(notmia, child_id="mia", reward_id="whatever")
     with pytest.raises(AuthorizationError):
         world.apply_adjustment(mia, child_id="mia", amount=1)  # not an intent op
+
+
+# --- INV-2 : re-assigning an already-assigned quest is idempotent -------
+# (assign_quest must not silently discard the child's ownership stage or
+#  progress count — INV-2 durable ownership state, DECISION-017)
+def test_assign_quest_is_idempotent_preserves_stage_and_progress(world, child, parent):
+    force_stage(world, parent, "mia", "teeth", OwnershipStage.CHILD_OWNED)
+    world.repo.get_child_quest("mia", "teeth").consecutive_ok_count = 5
+
+    again = world.assign_quest(parent, child_id="mia", quest_id="teeth")
+
+    assert again.ownership_stage is OwnershipStage.CHILD_OWNED
+    assert again.consecutive_ok_count == 5
+    cq = world.repo.get_child_quest("mia", "teeth")
+    assert cq.ownership_stage is OwnershipStage.CHILD_OWNED
+    assert cq.consecutive_ok_count == 5
