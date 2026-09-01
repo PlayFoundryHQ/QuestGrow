@@ -31,7 +31,7 @@
 > established decision rather than making a new one). Test added
 > (`test_invariants.py::test_assign_quest_is_idempotent_preserves_stage_and_progress`).
 > Backend: **61/8 stdlib + 117/1 venv** (both +1). Not yet cut as a release —
-> Released in **v0.7.0** (2026-09-01); deploy pending merge of ops PR #77.
+> **Deployed** in v0.7.0 (2026-09-01) — live at `questgrow.opscale.ir`.
 
 ---
 
@@ -45,7 +45,7 @@
 | Helm chart (`deploy/questgrow/Chart.yaml`) | `0.6.3` / appVersion `0.6.3` | published to `ghcr.io/playfoundryhq/charts/questgrow` for every release |
 | Container image | `ghcr.io/playfoundryhq/questgrow:0.6.3` | published; also `:sha`, `:latest` per release |
 | Android app (`versionName` at release) | `0.6.3` | signed `app-release.apk` attached to the GitHub Release |
-| **Live deployment** (`questgrow.opscale.ir`) | **image `0.6.3`** | ArgoCD `Synced / Healthy`, tracking chart `0.6.3`; **v0.7.0 released, not yet deployed** (ops PR #77 open (targetRevision → 0.7.0)) |
+| **Live deployment** (`questgrow.opscale.ir`) | **image `0.7.0`** | ArgoCD `Synced / Healthy`; deployed 2026-09-01 via ops PR #77 (`/health` → `api:0.7.0`, 80 OpenAPI paths) |
 | Open issues (this repo) | **0** | |
 | Open PRs (this repo) | **0** | |
 | Ops repo `OpScaleLab/nuc-lab-operation` | #75 merged (0.6.2), #76 closed, then bumped to **0.6.3** directly (`ed6aabb`) | live == `0.6.3`. Next: bump `targetRevision` → **`0.7.0`** |
@@ -550,7 +550,7 @@ No GitHub Actions. Local build → GHCR → tag → Release → ops PR → ArgoC
 | Backend auth / scope / ledger / rewards | VERIFIED | (contract test) | n/a | n/a | VERIFIED (`/openapi.json`, `/v1` 401, cross-child 403) | VERIFIED (Synced/Healthy) |
 | Backend persistence / restart-safety | VERIFIED | n/a | n/a | n/a | VERIFIED (pod restart after DB wipe, data schema rebuilt) | VERIFIED |
 | TTS audible output | — | — | Settings row VERIFIED (reports "no voice") | **NOT VERIFIED** (needs AvaCore) | n/a | n/a |
-| Deployment on `questgrow.opscale.ir` | — | — | — | — | VERIFIED (`/health` `api:0.6.3`) | **DEPLOYED** (image 0.6.3; v0.7.0 released, not yet deployed) |
+| Deployment on `questgrow.opscale.ir` | — | — | — | — | VERIFIED (`/health` `api:0.7.0`, new endpoints in live OpenAPI, unauth → 401) | **DEPLOYED** (image 0.7.0) |
 
 **BLOCKED:** on-device font-scale toggle + live TalkBack (test phone denies
 `WRITE_SECURE_SETTINGS` / `pm clear`). **FAILED:** nothing currently failing.
@@ -642,12 +642,11 @@ Tests: `OfflineAndSyncTest.ChildRepositoryMultiChildTest` ×3 (per-child offline
 board, per-child flush isolation, `forgetChild`). Not a schema or API change —
 Android-only; **shipped in v0.7.0** (APK on the GitHub Release).
 
-### CRACK-2 — live deployment version label lag — **RESOLVED then re-opened by v0.7.0**
+### CRACK-2 — live deployment version label lag — **RESOLVED (2026-09-01)**
 
-The 0.6.1 vs 0.6.3 gap is closed — the owner bumped the ops `targetRevision` to
-`0.6.3` (`/health` → `api:0.6.3`). `v0.7.0` is now released but not deployed;
-this time the gap is **not cosmetic** (0.7.0 has backend behaviour changes —
-CRACK-6 + DECISION-022). Closes when `targetRevision` is bumped to `0.7.0`.
+Live backend == code == `0.7.0`. The 0.6.x label lag was cleared by the owner,
+then v0.7.0 (with real backend changes — CRACK-6 + DECISION-022) was released
+and deployed via ops PR #77. `/health` → `api:0.7.0`, ArgoCD `Synced/Healthy`.
 
 ### CRACK-3 — the ArgoCD Application + one cluster Secret live outside Git — **DOCUMENTED, ACCEPTED**
 
@@ -705,14 +704,11 @@ said "DECISION-001…019" and "Phase G". Corrected in the same commit as this fi
 
 ## 11. Open product-owner decisions
 
-1. **Merge ops PR #77** (`OpScaleLab/nuc-lab-operation` — `targetRevision`
-   `0.6.3 → 0.7.0`) → ArgoCD deploys the CRACK-6 fix + DECISION-022 endpoints
-   (real behaviour change).
-2. **Back up the Android signing keystore** (CRACK-4). Not optional if the
+1. **Back up the Android signing keystore** (CRACK-4). Not optional if the
    owner ever wants to ship an upgrade to an installed APK.
-3. **Parent-token TTL of 12h** — already the owner's decision; flagged here so
+2. **Parent-token TTL of 12h** — already the owner's decision; flagged here so
    it is on the record as a deliberate trade-off, not a default left unset.
-4. **AvaCore package name after the PlayFoundryHQ migration** — if it changes,
+3. **AvaCore package name after the PlayFoundryHQ migration** — if it changes,
    the explicit `<package>` in the manifest needs a one-line update (tell the
    dev agent; the generic query still works either way).
 
@@ -758,15 +754,15 @@ scope, and nothing in this reconciliation changes it.
 | All releases | `v0.3.1`–`v0.7.0` (12), all with image + chart; APK attached from `v0.3.4` on |
 | Android APK | signed with the real upload key when `keystore.properties`/`QG_KEYSTORE_*` present, else debug key. `versionCode` = `maj*10000 + min*100 + pat` (monotonic per semver). Distribution: sideload from `github.com/PlayFoundryHQ/QuestGrow/releases/latest`. **No Play Store.** |
 | Android ↔ backend compatibility | v0.4.0–v0.6.3 clients all speak the same `/v1` contract. v0.5.0+ needs `GET /v1/me/rewards` + `GET /v1/redemptions` (present since backend 0.5.0; live backend is 0.6.1 ⟹ present). A v0.5.0+ client against a ≤0.4.x backend would get 404s on the rewards screen (graceful "Not Found" state). |
-| Backend deployment | **DEPLOYED**: image `0.6.3` on `questgrow.opscale.ir`, ArgoCD `Synced / Healthy`. `v0.7.0` released, `targetRevision` bump pending. |
-| Backend ↔ chart | live tracks chart `0.6.3`; repo chart is `0.7.0`; ops `targetRevision` bump `0.6.3 → 0.7.0` — ops PR #77 open. |
+| Backend deployment | **DEPLOYED**: image `0.7.0` on `questgrow.opscale.ir`, ArgoCD `Synced / Healthy` (deployed 2026-09-01 via ops PR #77). |
+| Backend ↔ chart | live tracks chart `0.7.0` == repo chart. In sync. |
 | Migrations | `0001_domain`, `0002_auth_and_events` — applied on every startup; `schema_migrations` table tracks. No pending migration. |
 | Database | **freshly wiped** 2026-08-30 at the owner's request — empty schema, zero accounts. |
 | Rollout / upgrade risk | client-only releases (0.6.1–0.6.3): none. A future backend release with a migration: additive-only so far; a down-migration path is not implemented (rollback = revert `targetRevision`, keep the newer schema). |
 
 **SHIPPED:** everything through `v0.6.3` (code, image, chart, APK, GitHub Release).
-**DEPLOYED:** backend `0.6.3`.
-**READY, not deployed:** chart/image `0.7.0` (published; ops PR #77 open (targetRevision → 0.7.0) — real behaviour change).
+**DEPLOYED:** backend `0.7.0` (verified live 2026-09-01).
+**READY, not deployed:** nothing — HEAD is released and deployed.
 **CODE EXISTS, not shipped:** nothing — HEAD is a release commit.
 **PLANNED:** §12.
 
@@ -929,7 +925,7 @@ already on the plan shows «✓ در برنامه». New additive backend endpoi
 suggestion + today/future unresolved occurrences; **keeps every earned ledger
 entry and verified/pending occurrence** — INV-12/13). Backend **125/1** venv
 (+8), Android unit **27**, lint pass, instrumented **12/12** (emulator).
-**Released in v0.7.0** (2026-09-01); deploy pending merge of ops PR #77.
+**Deployed** in v0.7.0 (2026-09-01), verified live (`api:0.7.0`).
 
 Files: `docs/governance/DECISION_LOG.md` (DECISION-022), `src/questgrow/service.py`
 (`list_child_quests`, `unassign_quest`), `src/questgrow/repository.py` +
@@ -966,9 +962,9 @@ gh release list
 grep version pyproject.toml src/questgrow/api.py              # 0.6.3
 
 # 3. live deployment truth
-curl -s https://questgrow.opscale.ir/health                   # {"status":"ok","api":"0.6.3"}  (v0.7.0 released, not yet deployed)
+curl -s https://questgrow.opscale.ir/health                   # {"status":"ok","api":"0.7.0"}
 curl -s https://questgrow.opscale.ir/openapi.json | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["paths"]))'   # 78 on live 0.6.x; +GET/DELETE children/{id}/quests in v0.7
-kubectl -n questgrow get deploy questgrow -o jsonpath='{.spec.template.spec.containers[0].image}'   # :0.6.3
+kubectl -n questgrow get deploy questgrow -o jsonpath='{.spec.template.spec.containers[0].image}'   # :0.7.0
 kubectl -n argocd get application questgrow -o jsonpath='{.status.sync.status}/{.status.health.status}'   # Synced/Healthy
 cat /tmp/ops/gitops/apps/questgrow.yaml | grep targetRevision  # 0.6.1 (ops repo); PRs #75/#76 open
 
@@ -983,7 +979,7 @@ grep -rn "ownership_stage\|readiness\|streak" android/app/src/main/java/hq/playf
 
 # 6. the two open cracks
 #    CRACK-1: FIXED 2026-08-31 — ReadCache + OfflineQueue are childId-scoped
-#    CRACK-2: RESOLVED (live 0.6.3); v0.7.0 released, targetRevision bump 0.6.3->0.7.0 pending
+#    CRACK-2: RESOLVED — live == code == 0.7.0
 ```
 
 The repository at `HEAD` (`80449ec`, docs-only on top of the `v0.6.3` release
@@ -1010,7 +1006,7 @@ This file does not erase or rewrite prior phase reports. The history stands:
 | `v0.6.1` (`a2f36be`) — sign-in recovery | commit | current |
 | `v0.6.2` (`f80e7ee`) — shared-phone auto-sync of all children | commit | current |
 | `v0.6.3` (`23338ea`) — TTS `<queries>` + container-leak fix | commit | current |
-| `v0.7.0` (`54ecdda`) — CRACK-1/6 fixes + per-child routine mgmt (DECISION-022) | commit, tag, GH Release + APK | released 2026-09-01; deploy pending |
+| `v0.7.0` (`54ecdda`) — CRACK-1/6 fixes + per-child routine mgmt (DECISION-022) | commit, tag, GH Release + APK, ops PR #77 | released + deployed 2026-09-01 |
 | Reconciliation (`80449ec`, `1cbea77`) — `docs/PROJECT_STATE.md` | this file | the current-state index |
 | 2026-08-31 UX/terminology audit — parent Routines screen clarity | this file §10/§11/§18, `strings.xml`, `ParentFlow.kt` | current |
 | 2026-08-31 post-audit reconciliation — `assign_quest` idempotency (CRACK-6 fix) | this file §2/§9/§10/§18, `service.py`, `test_invariants.py` | current |
