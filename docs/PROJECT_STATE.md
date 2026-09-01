@@ -31,7 +31,7 @@
 > established decision rather than making a new one). Test added
 > (`test_invariants.py::test_assign_quest_is_idempotent_preserves_stage_and_progress`).
 > Backend: **61/8 stdlib + 117/1 venv** (both +1). Not yet cut as a release —
-> Released in **v0.7.0** (2026-09-01); deploy pending the ops `targetRevision` bump.
+> Released in **v0.7.0** (2026-09-01); deploy pending merge of ops PR #77.
 
 ---
 
@@ -45,7 +45,7 @@
 | Helm chart (`deploy/questgrow/Chart.yaml`) | `0.6.3` / appVersion `0.6.3` | published to `ghcr.io/playfoundryhq/charts/questgrow` for every release |
 | Container image | `ghcr.io/playfoundryhq/questgrow:0.6.3` | published; also `:sha`, `:latest` per release |
 | Android app (`versionName` at release) | `0.6.3` | signed `app-release.apk` attached to the GitHub Release |
-| **Live deployment** (`questgrow.opscale.ir`) | **image `0.6.3`** | ArgoCD `Synced / Healthy`, tracking chart `0.6.3`; **v0.7.0 released, not yet deployed** (ops `targetRevision` bump pending) |
+| **Live deployment** (`questgrow.opscale.ir`) | **image `0.6.3`** | ArgoCD `Synced / Healthy`, tracking chart `0.6.3`; **v0.7.0 released, not yet deployed** (ops PR #77 open (targetRevision → 0.7.0)) |
 | Open issues (this repo) | **0** | |
 | Open PRs (this repo) | **0** | |
 | Ops repo `OpScaleLab/nuc-lab-operation` | #75 merged (0.6.2), #76 closed, then bumped to **0.6.3** directly (`ed6aabb`) | live == `0.6.3`. Next: bump `targetRevision` → **`0.7.0`** |
@@ -705,8 +705,9 @@ said "DECISION-001…019" and "Phase G". Corrected in the same commit as this fi
 
 ## 11. Open product-owner decisions
 
-1. **Bump ops `targetRevision` `0.6.3 → 0.7.0`** in `OpScaleLab/nuc-lab-operation`
-   to deploy the CRACK-6 fix + DECISION-022 endpoints (real behaviour change).
+1. **Merge ops PR #77** (`OpScaleLab/nuc-lab-operation` — `targetRevision`
+   `0.6.3 → 0.7.0`) → ArgoCD deploys the CRACK-6 fix + DECISION-022 endpoints
+   (real behaviour change).
 2. **Back up the Android signing keystore** (CRACK-4). Not optional if the
    owner ever wants to ship an upgrade to an installed APK.
 3. **Parent-token TTL of 12h** — already the owner's decision; flagged here so
@@ -758,14 +759,14 @@ scope, and nothing in this reconciliation changes it.
 | Android APK | signed with the real upload key when `keystore.properties`/`QG_KEYSTORE_*` present, else debug key. `versionCode` = `maj*10000 + min*100 + pat` (monotonic per semver). Distribution: sideload from `github.com/PlayFoundryHQ/QuestGrow/releases/latest`. **No Play Store.** |
 | Android ↔ backend compatibility | v0.4.0–v0.6.3 clients all speak the same `/v1` contract. v0.5.0+ needs `GET /v1/me/rewards` + `GET /v1/redemptions` (present since backend 0.5.0; live backend is 0.6.1 ⟹ present). A v0.5.0+ client against a ≤0.4.x backend would get 404s on the rewards screen (graceful "Not Found" state). |
 | Backend deployment | **DEPLOYED**: image `0.6.3` on `questgrow.opscale.ir`, ArgoCD `Synced / Healthy`. `v0.7.0` released, `targetRevision` bump pending. |
-| Backend ↔ chart | live tracks chart `0.6.3`; repo chart is `0.7.0`; ops `targetRevision` bump `0.6.3 → 0.7.0` pending. |
+| Backend ↔ chart | live tracks chart `0.6.3`; repo chart is `0.7.0`; ops `targetRevision` bump `0.6.3 → 0.7.0` — ops PR #77 open. |
 | Migrations | `0001_domain`, `0002_auth_and_events` — applied on every startup; `schema_migrations` table tracks. No pending migration. |
 | Database | **freshly wiped** 2026-08-30 at the owner's request — empty schema, zero accounts. |
 | Rollout / upgrade risk | client-only releases (0.6.1–0.6.3): none. A future backend release with a migration: additive-only so far; a down-migration path is not implemented (rollback = revert `targetRevision`, keep the newer schema). |
 
 **SHIPPED:** everything through `v0.6.3` (code, image, chart, APK, GitHub Release).
 **DEPLOYED:** backend `0.6.3`.
-**READY, not deployed:** chart/image `0.7.0` (published; ops `targetRevision` bump pending — real behaviour change).
+**READY, not deployed:** chart/image `0.7.0` (published; ops PR #77 open (targetRevision → 0.7.0) — real behaviour change).
 **CODE EXISTS, not shipped:** nothing — HEAD is a release commit.
 **PLANNED:** §12.
 
@@ -928,7 +929,7 @@ already on the plan shows «✓ در برنامه». New additive backend endpoi
 suggestion + today/future unresolved occurrences; **keeps every earned ledger
 entry and verified/pending occurrence** — INV-12/13). Backend **125/1** venv
 (+8), Android unit **27**, lint pass, instrumented **12/12** (emulator).
-**Released in v0.7.0** (2026-09-01); deploy pending the ops `targetRevision` bump.
+**Released in v0.7.0** (2026-09-01); deploy pending merge of ops PR #77.
 
 Files: `docs/governance/DECISION_LOG.md` (DECISION-022), `src/questgrow/service.py`
 (`list_child_quests`, `unassign_quest`), `src/questgrow/repository.py` +
