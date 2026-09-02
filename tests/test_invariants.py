@@ -301,3 +301,73 @@ def test_assign_quest_is_idempotent_preserves_stage_and_progress(world, child, p
     cq = world.repo.get_child_quest("mia", "teeth")
     assert cq.ownership_stage is OwnershipStage.CHILD_OWNED
     assert cq.consecutive_ok_count == 5
+
+
+# --- INV-13 (concurrency) : Spendable Balance can never go negative ----
+# The ledger guard must hold under duplicate taps / retries / racing
+# self-service redeem vs parent grant vs two parent devices. Prove *final
+# state*, not just response codes (audit §33).
+import concurrent.futures as _cf  # noqa: E402
+
+from questgrow import EventSink, QuestGrowService, QuestSchedule, Recurrence  # noqa: E402
+from questgrow import RedemptionMode as _RM  # noqa: E402
+from questgrow.sqlite_repository import SqliteRepository  # noqa: E402
+
+
+def _family_with_balance(repo, points: int):
+    svc = QuestGrowService(repo=repo, events=EventSink())
+    p, c = ParentScope("acct-1"), ChildScope("mia")
+    svc.create_account("acct-1")
+    svc.add_child(p, child_id="mia", name="Mia", age_band="5-6")
+    svc.create_quest(p, quest_id="teeth", title="Brush", icon="🪥", points=points)
+    svc.set_schedule(p, quest_id="teeth", schedule=QuestSchedule("teeth", Recurrence.DAILY))
+    svc.assign_quest(p, child_id="mia", quest_id="teeth")
+    svc.set_ownership_stage(p, child_id="mia", quest_id="teeth", target=OwnershipStage.CHILD_OWNED)
+    svc.materialise_day(DAY)
+    svc.submit_completion(c, child_id="mia", quest_id="teeth", day=DAY)
+    return svc, p, c
+
+
+@pytest.mark.parametrize("repo_factory", [
+    lambda tmp_path: SqliteRepository(str(tmp_path / "c.db")),
+    lambda tmp_path: __import__("questgrow").InMemoryRepository(),
+])
+def test_inv13_concurrent_self_service_redeem_cannot_overspend(repo_factory, tmp_path):
+    svc, p, c = _family_with_balance(repo_factory(tmp_path), points=10)
+    svc.create_reward(p, reward_id="ice", name="Ice", icon="🍦", cost=10, mode=_RM.SELF_SERVICE)
+
+    def go(_):
+        try:
+            svc.redeem_reward(c, child_id="mia", reward_id="ice")
+            return True
+        except ContractViolation:
+            return False
+
+    with _cf.ThreadPoolExecutor(max_workers=20) as ex:
+        granted = sum(ex.map(go, range(20)))
+
+    assert granted == 1
+    assert svc.spendable_balance(child_id="mia") == 0          # never negative
+    assert svc.lifetime_achievement(child_id="mia") == 10      # untouched (INV-13)
+
+
+def test_inv13_concurrent_grant_of_two_pending_cannot_overspend(tmp_path):
+    # balance 10; two separate pending redemptions of cost 10 each; parent
+    # (or two devices) grants both at once — only one may succeed.
+    svc, p, c = _family_with_balance(SqliteRepository(str(tmp_path / "g.db")), points=10)
+    svc.create_reward(p, reward_id="ice", name="Ice", icon="🍦", cost=10, mode=_RM.PARENT_CONFIRMED)
+    r1 = svc.redeem_reward(c, child_id="mia", reward_id="ice")
+    r2 = svc.redeem_reward(c, child_id="mia", reward_id="ice")
+
+    def grant(rid):
+        try:
+            svc.grant_redemption(p, redemption_id=rid)
+            return True
+        except ContractViolation:
+            return False
+
+    with _cf.ThreadPoolExecutor(max_workers=2) as ex:
+        ok = list(ex.map(grant, [r1.id, r2.id]))
+
+    assert sum(ok) == 1
+    assert svc.spendable_balance(child_id="mia") == 0

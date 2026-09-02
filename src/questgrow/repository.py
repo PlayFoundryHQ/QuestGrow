@@ -18,6 +18,7 @@ Invariants enforced here:
 from __future__ import annotations
 
 import itertools
+import threading
 from datetime import date
 from typing import Protocol
 
@@ -79,6 +80,7 @@ class Repository(Protocol):
 
     # ledger (append-only)
     def append_ledger(self, e: LedgerEntry) -> bool: ...
+    def spend_if_affordable(self, e: LedgerEntry, cost: int) -> bool: ...
     def ledger_for(self, child_id: str) -> list[LedgerEntry]: ...
     def all_ledger(self) -> list[LedgerEntry]: ...
 
@@ -124,6 +126,7 @@ class InMemoryRepository:
         self._parent_reviews: list[ParentReview] = []
         self._ledger: list[LedgerEntry] = []
         self._ledger_keys: set[str] = set()
+        self._ledger_lock = threading.RLock()
         self._rewards: dict[str, Reward] = {}
         self._redemptions: dict[str, RewardRedemption] = {}
         self._audit: list[AuditLogEntry] = []
@@ -242,11 +245,27 @@ class InMemoryRepository:
 
     # ledger (append-only, INV-11/12) -----------------------------
     def append_ledger(self, e: LedgerEntry) -> bool:
-        if e.idempotency_key in self._ledger_keys:
-            return False
-        self._ledger.append(e)
-        self._ledger_keys.add(e.idempotency_key)
-        return True
+        with self._ledger_lock:
+            if e.idempotency_key in self._ledger_keys:
+                return False
+            self._ledger.append(e)
+            self._ledger_keys.add(e.idempotency_key)
+            return True
+
+    def spend_if_affordable(self, e: LedgerEntry, cost: int) -> bool:
+        """Atomic check-and-append: write the spend entry only if the child's
+        current balance covers ``cost`` (INV-13). Mirrors the SQL backend's
+        single-transaction guard so overspend is impossible under concurrency.
+        """
+        with self._ledger_lock:
+            if e.idempotency_key in self._ledger_keys:
+                return False
+            balance = sum(x.points for x in self._ledger if x.child_id == e.child_id)
+            if balance < cost:
+                return False
+            self._ledger.append(e)
+            self._ledger_keys.add(e.idempotency_key)
+            return True
 
     def ledger_for(self, child_id: str) -> list[LedgerEntry]:
         return [e for e in self._ledger if e.child_id == child_id]

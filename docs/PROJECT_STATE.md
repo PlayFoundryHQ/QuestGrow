@@ -32,6 +32,26 @@
 > (`test_invariants.py::test_assign_quest_is_idempotent_preserves_stage_and_progress`).
 > Backend: **61/8 stdlib + 117/1 venv** (both +1). Not yet cut as a release —
 > **Deployed** in v0.7.0 (2026-09-01) — live at `questgrow.opscale.ir`.
+>
+> **2026-09-02 — concurrency audit pass (redemption over-spend).** One
+> corrective backend fix (CRACK-7). `redeem_reward` (self-service) and
+> `grant_redemption` read the Spendable Balance, checked it, then appended the
+> `redeem` ledger entry as *separate* statements — so N concurrent redemptions
+> (duplicate taps, retries, a self-service redeem racing a parent grant, two
+> parent devices) each passed the check and each debited: proven to drive the
+> balance negative (20 concurrent → 6 grants, balance **−50**). This violated
+> INV-13 / DECISION-015 (Spendable Balance is server-enforced, never negative),
+> so the fix implements an existing decision correctly — no new decision.
+> **Fix:** a new `Repository.spend_if_affordable(entry, cost)` does the
+> balance-read and the conditional append in **one transaction** (SQLite: the
+> single-writer lock is held across the whole block; the redeem idempotency key
+> is now the redemption id, so a duplicated grant of the *same* redemption
+> debits at most once). Also fixed a latent `SqliteDatabase.fetchone/fetchall`
+> race — the cursor was stepped after the lock was released — by materialising
+> rows under the lock (mirrors the Postgres `_MaterialisedCursor`). Tests:
+> `test_invariants.py::test_inv13_concurrent_self_service_redeem_cannot_overspend`
+> (SQLite + in-memory), `…::test_inv13_concurrent_grant_of_two_pending_cannot_overspend`.
+> Backend: **64/9 stdlib + 128/1 venv** (both +3). Not yet cut as a release.
 
 ---
 
@@ -125,6 +145,7 @@ Each row: **1** implemented in code · **2** covered by an automated test · **3
 | Completion → verification derived from `ownership_stage` (pure fn) | ✓ | ✓ (`test_acceptance.py` AC-1/2) | ✓ | ✓ | ✓ | INV-4/10 |
 | Approvals (parent) / not-yet / batch | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | Ledger: append-only, idempotent, one `earn` per verified completion | ✓ | ✓ (`test_invariants.py` INV-11/12/13, `test_c1_persistence.py`) | ✓ | — | ✓ | `ON CONFLICT DO NOTHING` on `idempotency_key` |
+| Spendable Balance never goes negative — even under concurrent redemption | ✓ | ✓ (`test_invariants.py` concurrent-redeem / concurrent-grant, 2026-09-02) | ✓ | — | ✓ | `spend_if_affordable` — atomic balance-check + append in one txn (CRACK-7) |
 | Lifetime Achievement (monotonic) ⟂ Spendable Balance | ✓ | ✓ (`test_acceptance.py` AC-6) | ✓ | — | ✓ | DECISION-015, INV-13 |
 | Rewards + redemptions (self-service / parent-confirmed) | ✓ | ✓ (`test_rewards_inbox.py` ×3, `test_integration_mvp.py`) | ✓ | ✓ | ✓ | v0.5.0 added `GET /v1/me/rewards`, `GET /v1/redemptions` |
 | Advancement suggestions (`consecutive_ok_count ≥ threshold`) | ✓ | ✓ (`test_d1_acceptance.py`) | ✓ | — | ✓ | never surfaced as a streak (INV-16) |
@@ -520,10 +541,10 @@ No GitHub Actions. Local build → GHCR → tag → Release → ops PR → ArgoC
 
 | Suite | Command | Result |
 |---|---|---|
-| stdlib (bare interpreter, domain) | `python3 -m pytest -q` | **61 passed, 9 skipped** (skips = suites needing `fastapi`/`httpx`) |
-| full stack (venv) | `.venv/bin/python -m pytest -q` | **125 passed, 1 skipped** (skip = `test_f_persistence.py` Postgres, needs `QUESTGROW_TEST_POSTGRES_URL`) |
+| stdlib (bare interpreter, domain) | `python3 -m pytest -q` | **64 passed, 9 skipped** (skips = suites needing `fastapi`/`httpx`) |
+| full stack (venv) | `.venv/bin/python -m pytest -q` | **128 passed, 1 skipped** (skip = `test_f_persistence.py` Postgres, needs `QUESTGROW_TEST_POSTGRES_URL`) |
 
-118 tests collected (`test_invariants.py` +1, 2026-08-31). By file: `test_invariants.py` 19 · `test_d1_acceptance.py`
+121 tests collected (`test_invariants.py` +3 concurrency, 2026-09-02). By file: `test_invariants.py` 22 · `test_d1_acceptance.py`
 17 · `test_acceptance.py` 17 · `test_c1_persistence.py` 15 · `test_f_hardening.py`
 9 · `test_auth.py` 9 · `test_api.py` 9 · `test_webclient.py` 8 ·
 `test_notifications.py` 7 · `test_f_persistence.py` 4 · `test_rewards_inbox.py` 3 ·
@@ -577,9 +598,11 @@ No GitHub Actions. Local build → GHCR → tag → Release → ops PR → ArgoC
 | Debug vs release | debug: `.debug` appId, dev backend default, `isMinifyEnabled=false`, permissive network config. release: R8 + resource shrink, live backend default, HTTPS-enforced, signed. Only the release APK is distributed. | **VERIFIED** |
 | Signing keystore | `CN=QuestGrow,O=PlayFoundryHQ,C=IR`, on the build machine at `/home/iceman/questgrow-release.jks` with creds in `/home/iceman/questgrow-keystore.creds`. **Not in any repo.** `android/keystore.properties` (gitignored) points at it; absent → the build falls back to the debug key. | **PRODUCT OWNER DECISION REQUIRED** — this is a single point of loss; the owner must back it up (losing it means no upgrade path for installed APKs). |
 
-No **POSSIBLE SECURITY ISSUE** class findings. The former offline-queue
-mis-attribution (CRACK-1) — a correctness defect, never a privacy breach — is
-fixed (2026-08-31): cache and queue are `childId`-scoped.
+| Ledger integrity under concurrency | `earn` is idempotent on `(quest@version, child, date)`. Redemption was **not** concurrency-safe — a non-atomic balance-check + append could over-spend into a negative balance (CRACK-7). **Fixed 2026-09-02**: `spend_if_affordable` — atomic check + append in one transaction; regression tests. | **FIXED** (`test_invariants.py` concurrent redeem/grant) |
+
+No **POSSIBLE SECURITY ISSUE** class findings. Two correctness defects — the
+offline-queue mis-attribution (CRACK-1, 2026-08-31) and the redemption
+over-spend (CRACK-7, 2026-09-02) — are fixed; neither was a privacy breach.
 
 ---
 
@@ -685,6 +708,32 @@ was a bug.
 `android/README.md` "Shape (Phase L)" section, its offline description, and the
 `migrations/0002` header comment described pre-v0.5/v0.6 behaviour; `docs/README.md`
 said "DECISION-001…019" and "Phase G". Corrected in the same commit as this file.
+
+### CRACK-7 — redemption over-spend under concurrency — **FIXED 2026-09-02**
+
+`redeem_reward` (self-service) and `grant_redemption` did a non-atomic
+read-check-append against the ledger: `balance = spendable_balance(...)`, then
+`if balance < cost: raise`, then a separate `append_ledger`. Concurrent
+redemptions (duplicate taps, client retries, a self-service redeem racing a
+parent grant, two parent devices in the inbox) each read the same balance, each
+passed the check, each debited — and the `redeem` idempotency key was a fresh
+unique id, so nothing collapsed them. Reproduced: 20 concurrent self-service
+redeems of a 10-pt reward against a 10-pt balance → **6 granted, balance −50**.
+Online-only; single-account; did not cross accounts. Violated INV-13 /
+DECISION-015 (Spendable Balance is server-enforced and never negative).
+
+**Fix (backend):** `Repository.spend_if_affordable(entry, cost)` — the balance
+read and the conditional append run in **one transaction**. On SQLite the
+single-writer lock (`db.transaction()`) is held across the whole block, so no
+other completion/redemption can interleave; `InMemoryRepository` takes an
+equivalent lock. The `redeem` idempotency key is now `redeem:{redemption_id}`,
+so a replayed or concurrently duplicated grant of the *same* redemption debits
+at most once. Also fixed a latent `SqliteDatabase.fetchone/fetchall` cross-thread
+race (cursor stepped after the lock was released) by materialising rows under
+the lock — the same shape the Postgres path already used. `_write_redeem`
+removed. Tests: `test_invariants.py` — concurrent self-service redeem (SQLite +
+in-memory), concurrent grant of two pending redemptions. Not a schema or API
+change; not yet cut as a release.
 
 ### Not gaps (checked, clean)
 
@@ -797,6 +846,10 @@ simplification proportionate to a personal project.
 - No CI; releases are a local operator action.
 - Audible TTS and live screen-reader traversal not verified on a real device.
 - Signing keystore lives only on the build machine.
+- Redemption over-spend under concurrency fixed 2026-09-02 (CRACK-7); the
+  backend is otherwise single-writer (SQLite lock) — no other concurrent-write
+  hazard found in the completion/ledger/ownership paths (earn is idempotent on
+  `(quest@version, child, date)`).
 - `docs/` product/UX/architecture documents describe the model as of Phase F
   and are **not** rewritten for each client iteration — this file (`PROJECT_STATE.md`)
   is the current-state layer on top of them.
@@ -911,6 +964,20 @@ The **2026-08-31 post-audit reconciliation** additionally changed:
 Backend suites: **61 passed / 8 skipped** stdlib, **117 passed / 1 skipped** venv
 (both +1). Instrumented Android not run (no emulator).
 
+The **2026-09-02 concurrency audit pass** additionally changed:
+- `src/questgrow/repository.py` — new `spend_if_affordable` on the `Repository`
+  protocol + `InMemoryRepository` (lock-guarded balance-check + append).
+- `src/questgrow/sql_repository.py` — `spend_if_affordable` (single-transaction
+  guard); `src/questgrow/db.py` — `SqliteDatabase.fetchone/fetchall` materialise
+  under the lock.
+- `src/questgrow/service.py` — `redeem_reward` / `grant_redemption` route
+  through `_spend_for_redemption`; `_write_redeem` removed.
+- `tests/test_invariants.py` — two concurrency regression tests (CRACK-7).
+- `docs/PROJECT_STATE.md` — header note, §2, §7, §8, §10, §15.
+
+Backend suites: **64 passed / 9 skipped** stdlib, **128 passed / 1 skipped** venv
+(both +3). Instrumented Android not run (Android untouched).
+
 **CRACK-1 fixed (same day)** — the offline read cache and write queue are now
 `childId`-scoped (see §10). Android-only; 3 new unit tests. The full instrumented
 suite (**12/12**, emulator) and unit suite (**27/27**) pass on the resulting
@@ -1010,6 +1077,7 @@ This file does not erase or rewrite prior phase reports. The history stands:
 | Reconciliation (`80449ec`, `1cbea77`) — `docs/PROJECT_STATE.md` | this file | the current-state index |
 | 2026-08-31 UX/terminology audit — parent Routines screen clarity | this file §10/§11/§18, `strings.xml`, `ParentFlow.kt` | current |
 | 2026-08-31 post-audit reconciliation — `assign_quest` idempotency (CRACK-6 fix) | this file §2/§9/§10/§18, `service.py`, `test_invariants.py` | current |
+| 2026-09-02 concurrency audit — redemption over-spend (CRACK-7 fix) | this file §2/§7/§8/§10/§15, `service.py`, `repository.py`, `sql_repository.py`, `db.py`, `test_invariants.py` | current |
 | 2026-08-31 autonomous phase — offline layer `childId`-scoped (CRACK-1 fix) | this file §2/§4/§8/§10/§11/§15, `android/README.md`, `data/local/ReadCache.kt`, `data/local/OfflineQueue.kt`, `data/ChildRepository.kt`, `data/AuthRepository.kt`, `QuestGrowApp.kt`, `OfflineAndSyncTest.kt`, `OfflineCacheTest.kt` | current |
 | 2026-08-31 autonomous phase — per-child routine management (DECISION-022) | `DECISION_LOG.md`, this file §2/§7/§9/§12, `android/README.md`, `service.py`, `repository.py`, `sql_repository.py`, `api.py`, `test_assignment.py`, Android `Dtos`/`QuestGrowApi`/`ParentRepository`/`ParentViewModel`/`ParentFlow`/`Models` | current |
 

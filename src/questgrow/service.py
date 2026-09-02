@@ -785,7 +785,6 @@ class QuestGrowService:
         reward = self.repo.get_reward(reward_id)
         if reward is None:
             raise NotFound(f"reward {reward_id}")
-        balance = spendable_balance(self.repo.ledger_for(child_id))
         red = RewardRedemption(
             id=self._id("rr"),
             reward_id=reward_id,
@@ -794,9 +793,8 @@ class QuestGrowService:
             requested_at=_now(),
         )
         if reward.redemption_mode is RedemptionMode.SELF_SERVICE:
-            if balance < reward.cost:
+            if not self._spend_for_redemption(red, reward):
                 raise ContractViolation("insufficient Spendable Balance")
-            self._write_redeem(child_id, reward)
             red.state = RedemptionState.GRANTED
             red.resolved_at = _now()
         self.repo.add_redemption(red)
@@ -812,10 +810,8 @@ class QuestGrowService:
             raise ContractViolation(f"redemption is {red.state}")
         reward = self.repo.get_reward(red.reward_id)
         assert reward is not None
-        balance = spendable_balance(self.repo.ledger_for(red.child_id))
-        if balance < reward.cost:
+        if not self._spend_for_redemption(red, reward):
             raise ContractViolation("insufficient Spendable Balance")
-        self._write_redeem(red.child_id, reward)
         red.state = RedemptionState.GRANTED
         red.resolved_at = _now()
         self.repo.save_redemption(red)
@@ -832,17 +828,26 @@ class QuestGrowService:
         self.repo.save_redemption(red)
         return red
 
-    def _write_redeem(self, child_id: str, reward: Reward) -> None:
+    def _spend_for_redemption(self, red: RewardRedemption, reward: Reward) -> bool:
+        """Append the ``redeem`` ledger entry **iff** the child's Spendable
+        Balance covers the cost, as one atomic check-and-append in the store
+        (``spend_if_affordable``). This is what makes overspend impossible under
+        concurrency — duplicate taps, retries, a self-service redeem racing a
+        parent grant, or two parent devices granting at once (INV-13,
+        DECISION-015). The idempotency key is the redemption id, so a replayed
+        or concurrently duplicated grant of the *same* redemption debits at most
+        once (INV-11). Returns False when unaffordable.
+        """
         entry = LedgerEntry(
             id=self._id("led"),
-            child_id=child_id,
+            child_id=red.child_id,
             kind=LedgerKind.REDEEM,
             points=-abs(reward.cost),  # non-positive; affects Spendable Balance only (INV-13)
             source=f"redeem:{reward.reward_id}",
             created_at=_now(),
-            idempotency_key=self._id("rdm"),
+            idempotency_key=f"redeem:{red.id}",
         )
-        self.repo.append_ledger(entry)
+        return self.repo.spend_if_affordable(entry, reward.cost)
 
     # ------------------------------------------------------------------ #
     # read models / projections (§7) — never authoritative               #

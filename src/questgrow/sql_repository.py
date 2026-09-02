@@ -327,6 +327,31 @@ class SqlRepository:
             inserted = (cur.rowcount == 1)
         return inserted  # False on replay → no second entry (INV-11)
 
+    def spend_if_affordable(self, e: LedgerEntry, cost: int) -> bool:
+        """Append a ``redeem`` (spend) ledger entry **only if** the child's
+        current Spendable Balance covers ``cost`` — the balance read and the
+        insert happen in one transaction (``db.transaction()`` holds the
+        single-writer lock for the whole block), so concurrent redemptions
+        cannot drive the balance negative (INV-13 / DECISION-015). A duplicate
+        ``idempotency_key`` is a no-op. Returns True only when a row was written.
+        """
+        with self.db.transaction():
+            row = self.db.fetchone(
+                "SELECT COALESCE(SUM(points), 0) AS bal FROM ledger WHERE child_id = ?",
+                (e.child_id,),
+            )
+            if (row["bal"] if row else 0) < cost:
+                return False
+            cur = self.db.execute(
+                "INSERT INTO ledger (id, child_id, kind, points, source, created_at, "
+                "idempotency_key, seq) VALUES (?, ?, ?, ?, ?, ?, ?, "
+                "COALESCE((SELECT MAX(seq) FROM ledger), 0) + 1) "
+                "ON CONFLICT (idempotency_key) DO NOTHING",
+                (e.id, e.child_id, e.kind.value, e.points, e.source,
+                 e.created_at.isoformat(), e.idempotency_key),
+            )
+            return cur.rowcount == 1
+
     @staticmethod
     def _ledger(r) -> LedgerEntry:
         return LedgerEntry(

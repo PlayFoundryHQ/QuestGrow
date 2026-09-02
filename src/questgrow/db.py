@@ -87,6 +87,23 @@ class SqliteDatabase(Database):
             self._conn.commit()
             return cur
 
+    def fetchone(self, sql: str, params: Sequence[Any] = ()) -> Any:
+        # Materialise the row while the lock is held — a bare cursor returned
+        # from execute() is stepped by fetchone() *after* the lock is released,
+        # which races a concurrent writer on this shared connection.
+        with self._lock:
+            cur = self._conn.execute(sql, tuple(params))
+            row = cur.fetchone()
+            self._conn.commit()
+            return row
+
+    def fetchall(self, sql: str, params: Sequence[Any] = ()) -> list[Any]:
+        with self._lock:
+            cur = self._conn.execute(sql, tuple(params))
+            rows = list(cur.fetchall())
+            self._conn.commit()
+            return rows
+
     def executemany(self, sql: str, rows: Iterable[Sequence[Any]]) -> None:
         with self._lock:
             self._conn.executemany(sql, [tuple(r) for r in rows])
