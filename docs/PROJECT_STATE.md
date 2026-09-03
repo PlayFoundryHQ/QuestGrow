@@ -51,7 +51,23 @@
 > rows under the lock (mirrors the Postgres `_MaterialisedCursor`). Tests:
 > `test_invariants.py::test_inv13_concurrent_self_service_redeem_cannot_overspend`
 > (SQLite + in-memory), `…::test_inv13_concurrent_grant_of_two_pending_cannot_overspend`.
-> Backend: **64/9 stdlib + 128/1 venv** (both +3). Not yet cut as a release.
+> Backend: **64/9 stdlib + 128/1 venv** (both +3).
+>
+> **2026-09-03 — released as `v0.7.1`.** Fix commit `88d4a44`; release commit
+> `e9b1f9a` (`release: v0.7.1 — backend image + chart`). Git tag `v0.7.1` +
+> GitHub Release published; image `ghcr.io/playfoundryhq/questgrow:0.7.1`
+> (digest `sha256:f89ed2ab4bfbe82ff105f2e56d478b425e01108c99d03650aa9fd4e35f414356`,
+> also `:88d4a44`, `:latest`); chart `ghcr.io/playfoundryhq/charts/questgrow:0.7.1`.
+> Android APK **unchanged from v0.7.0** (client untouched). Deployed 2026-09-03
+> via ops PR **`OpScaleLab/nuc-lab-operation#79`** (`targetRevision 0.7.0 →
+> 0.7.1`, merged 02:23 UTC); ArgoCD auto-synced. **Verified live:** `/health` →
+> `api:0.7.1`, `/openapi.json` `info.version` `0.7.1` (80 paths, unchanged),
+> `/v1/children` unauth → 401. Deployment identity: live `api:0.7.1` ⟹ running
+> commit `e9b1f9a` (only the release commit sits between `88d4a44` and the tag)
+> ⟹ the CRACK-7 fix is in the deployed artifact. No live write-path
+> concurrency test was run — that would seed data into the production
+> single-family DB; the invariant is covered by the regression tests against
+> the exact released code.
 
 ---
 
@@ -59,26 +75,24 @@
 
 | Component | Version | State |
 |---|---|---|
-| Repository `HEAD` | `80449ec` — docs-only, on top of `2f15632` (`release: v0.6.3`) | `== origin/main`, tree clean, 72 commits |
-| Latest git tag / GitHub Release | **`v0.7.0`** (2026-09-01) | 12 releases: `v0.3.1 … v0.7.0` |
-| Backend package (`pyproject.toml`) | `0.6.3` | `FastAPI(title="QuestGrow API", version="0.6.3")` |
-| Helm chart (`deploy/questgrow/Chart.yaml`) | `0.6.3` / appVersion `0.6.3` | published to `ghcr.io/playfoundryhq/charts/questgrow` for every release |
-| Container image | `ghcr.io/playfoundryhq/questgrow:0.6.3` | published; also `:sha`, `:latest` per release |
-| Android app (`versionName` at release) | `0.6.3` | signed `app-release.apk` attached to the GitHub Release |
-| **Live deployment** (`questgrow.opscale.ir`) | **image `0.7.0`** | ArgoCD `Synced / Healthy`; deployed 2026-09-01 via ops PR #77 (`/health` → `api:0.7.0`, 80 OpenAPI paths) |
+| Repository `HEAD` | `e9b1f9a` — `release: v0.7.1` (on top of `88d4a44`, CRACK-7 fix) | `== origin/main`, tree clean |
+| Latest git tag / GitHub Release | **`v0.7.1`** (2026-09-03) | 13 releases: `v0.3.1 … v0.7.1` |
+| Backend package (`pyproject.toml`) | `0.7.1` | `FastAPI(title="QuestGrow API", version="0.7.1")` |
+| Helm chart (`deploy/questgrow/Chart.yaml`) | `0.7.1` / appVersion `0.7.1` | published to `ghcr.io/playfoundryhq/charts/questgrow` for every release |
+| Container image | `ghcr.io/playfoundryhq/questgrow:0.7.1` | `sha256:f89ed2ab4bfbe82ff105f2e56d478b425e01108c99d03650aa9fd4e35f414356`; also `:88d4a44`, `:latest` |
+| Android app (`versionName` at release) | `0.7.0` | unchanged by v0.7.1; signed `app-release.apk` on the v0.7.0 Release |
+| **Live deployment** (`questgrow.opscale.ir`) | **image `0.7.1`** | `/health` → `api:0.7.1` (verified 2026-09-03); deployed via ops PR #79, ArgoCD auto-sync |
 | Open issues (this repo) | **0** | |
 | Open PRs (this repo) | **0** | |
-| Ops repo `OpScaleLab/nuc-lab-operation` | #75 merged (0.6.2), #76 closed, then bumped to **0.6.3** directly (`ed6aabb`) | live == `0.6.3`. Next: bump `targetRevision` → **`0.7.0`** |
+| Ops repo `OpScaleLab/nuc-lab-operation` | #77 merged (0.7.0); **#79 merged** 2026-09-03 (`targetRevision 0.7.0 → 0.7.1`) | live == `0.7.1` |
 
-**Release / deploy status (2026-09-01).** `v0.7.0` is **released** — image
-`ghcr.io/playfoundryhq/questgrow:0.7.0`, chart `0.7.0`, git tag `v0.7.0`, GitHub
-Release with the signed `app-release.apk`. Live backend is **`0.6.3`** (the owner
-worked the ops side: #75 merged, #76 closed, then a direct bump to `0.6.3` —
-`/health` now reports `api:0.6.3`). **Unlike 0.6.1–0.6.3, deploying `0.7.0` is
-not a no-op:** it carries the CRACK-6 `assign_quest` idempotency fix and the
-DECISION-022 endpoints (`GET`/`DELETE /v1/children/{id}/quests`). The Android
-CRACK-1 fix ships in the APK. Remaining: bump the ArgoCD `targetRevision`
-`0.6.3 → 0.7.0` in `OpScaleLab/nuc-lab-operation`.
+**Release / deploy status (2026-09-03).** `v0.7.1` is **released AND deployed** —
+image `ghcr.io/playfoundryhq/questgrow:0.7.1`, chart `0.7.1`, git tag `v0.7.1`,
+GitHub Release (backend-only; carries the CRACK-7 redemption-concurrency fix, no
+API change, no migration). Deployed via ops PR #79 (merged) → ArgoCD auto-sync;
+live `/health` → `api:0.7.1`, `/openapi.json` `0.7.1`. `kubectl`/`argocd` are
+not reachable from outside the cluster during a nuc-lab network restructure, so
+rollout was confirmed via the public `/health` + `/openapi.json` endpoints.
 
 **Distinguish (used throughout this document):**
 
@@ -709,7 +723,7 @@ was a bug.
 `migrations/0002` header comment described pre-v0.5/v0.6 behaviour; `docs/README.md`
 said "DECISION-001…019" and "Phase G". Corrected in the same commit as this file.
 
-### CRACK-7 — redemption over-spend under concurrency — **FIXED 2026-09-02**
+### CRACK-7 — redemption over-spend under concurrency — **FIXED 2026-09-02, SHIPPED + DEPLOYED in v0.7.1 (2026-09-03)**
 
 `redeem_reward` (self-service) and `grant_redemption` did a non-atomic
 read-check-append against the ledger: `balance = spendable_balance(...)`, then
@@ -733,7 +747,10 @@ race (cursor stepped after the lock was released) by materialising rows under
 the lock — the same shape the Postgres path already used. `_write_redeem`
 removed. Tests: `test_invariants.py` — concurrent self-service redeem (SQLite +
 in-memory), concurrent grant of two pending redemptions. Not a schema or API
-change; not yet cut as a release.
+change. Fix commit `88d4a44`; released as **v0.7.1** (`e9b1f9a`, image
+`ghcr.io/playfoundryhq/questgrow:0.7.1` @ `sha256:f89ed2ab4bfbe82ff105f2e56d478b425e01108c99d03650aa9fd4e35f414356`);
+deployed 2026-09-03 via ops PR `OpScaleLab/nuc-lab-operation#79`; live `/health`
+→ `api:0.7.1`.
 
 ### Not gaps (checked, clean)
 
@@ -799,12 +816,12 @@ scope, and nothing in this reconciliation changes it.
 
 | Thing | State |
 |---|---|
-| Latest release | `v0.7.0` (2026-09-01) — GitHub Release with signed `app-release.apk`, image `ghcr.io/playfoundryhq/questgrow:0.7.0`, chart `ghcr.io/playfoundryhq/charts/questgrow:0.7.0` — **SHIPPED**, deploy pending |
-| All releases | `v0.3.1`–`v0.7.0` (12), all with image + chart; APK attached from `v0.3.4` on |
+| Latest release | `v0.7.1` (2026-09-03) — backend-only (CRACK-7 fix); image `ghcr.io/playfoundryhq/questgrow:0.7.1`, chart `…/charts/questgrow:0.7.1`, git tag + GitHub Release — **SHIPPED + DEPLOYED** (`/health` → `api:0.7.1`). Prior: `v0.7.0` (2026-09-01) with signed `app-release.apk`. |
+| All releases | `v0.3.1`–`v0.7.1` (13), all with image + chart; APK attached from `v0.3.4` on (v0.7.1 has no APK — client unchanged) |
 | Android APK | signed with the real upload key when `keystore.properties`/`QG_KEYSTORE_*` present, else debug key. `versionCode` = `maj*10000 + min*100 + pat` (monotonic per semver). Distribution: sideload from `github.com/PlayFoundryHQ/QuestGrow/releases/latest`. **No Play Store.** |
 | Android ↔ backend compatibility | v0.4.0–v0.6.3 clients all speak the same `/v1` contract. v0.5.0+ needs `GET /v1/me/rewards` + `GET /v1/redemptions` (present since backend 0.5.0; live backend is 0.6.1 ⟹ present). A v0.5.0+ client against a ≤0.4.x backend would get 404s on the rewards screen (graceful "Not Found" state). |
-| Backend deployment | **DEPLOYED**: image `0.7.0` on `questgrow.opscale.ir`, ArgoCD `Synced / Healthy` (deployed 2026-09-01 via ops PR #77). |
-| Backend ↔ chart | live tracks chart `0.7.0` == repo chart. In sync. |
+| Backend deployment | **DEPLOYED**: image `0.7.1` on `questgrow.opscale.ir` (deployed 2026-09-03 via ops PR #79; ArgoCD auto-sync; verified `/health` → `api:0.7.1`). |
+| Backend ↔ chart | live tracks chart `0.7.1` == repo chart. In sync. |
 | Migrations | `0001_domain`, `0002_auth_and_events` — applied on every startup; `schema_migrations` table tracks. No pending migration. |
 | Database | **freshly wiped** 2026-08-30 at the owner's request — empty schema, zero accounts. |
 | Rollout / upgrade risk | client-only releases (0.6.1–0.6.3): none. A future backend release with a migration: additive-only so far; a down-migration path is not implemented (rollback = revert `targetRevision`, keep the newer schema). |
@@ -1078,6 +1095,7 @@ This file does not erase or rewrite prior phase reports. The history stands:
 | 2026-08-31 UX/terminology audit — parent Routines screen clarity | this file §10/§11/§18, `strings.xml`, `ParentFlow.kt` | current |
 | 2026-08-31 post-audit reconciliation — `assign_quest` idempotency (CRACK-6 fix) | this file §2/§9/§10/§18, `service.py`, `test_invariants.py` | current |
 | 2026-09-02 concurrency audit — redemption over-spend (CRACK-7 fix) | this file §2/§7/§8/§10/§15, `service.py`, `repository.py`, `sql_repository.py`, `db.py`, `test_invariants.py` | current |
+| `v0.7.1` (`e9b1f9a`) — CRACK-7 redemption-concurrency fix, backend-only | commit, tag, GH Release, image+chart `0.7.1`, ops PR #79 | released + deployed 2026-09-03 |
 | 2026-08-31 autonomous phase — offline layer `childId`-scoped (CRACK-1 fix) | this file §2/§4/§8/§10/§11/§15, `android/README.md`, `data/local/ReadCache.kt`, `data/local/OfflineQueue.kt`, `data/ChildRepository.kt`, `data/AuthRepository.kt`, `QuestGrowApp.kt`, `OfflineAndSyncTest.kt`, `OfflineCacheTest.kt` | current |
 | 2026-08-31 autonomous phase — per-child routine management (DECISION-022) | `DECISION_LOG.md`, this file §2/§7/§9/§12, `android/README.md`, `service.py`, `repository.py`, `sql_repository.py`, `api.py`, `test_assignment.py`, Android `Dtos`/`QuestGrowApi`/`ParentRepository`/`ParentViewModel`/`ParentFlow`/`Models` | current |
 
